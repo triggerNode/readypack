@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────
+   Readypack — Axiom High-Precision Design System
+   All colour values MUST be referenced via these
+   custom properties. No hardcoded hex elsewhere.
+───────────────────────────────────────── */
+
+:root {
+  /* Core surfaces — dark mode (default) */
+  --bg-primary:       #0d141d;
+  --bg-secondary:     #111a24;
+  --bg-tertiary:      #162030;
+  --border-subtle:    #1e2d3d;
+  --border-emphasis:  #2a3f55;
+
+  /* Brand accents */
+  --accent-primary:   #16a34a;
+  --accent-hover:     #15803d;
+  --accent-glow:      rgba(22, 163, 74, 0.15);
+  --accent-muted:     rgba(22, 163, 74, 0.08);
+
+  /* Typography */
+  --text-primary:     #f0f4f8;
+  --text-secondary:   #8fa3b8;
+  --text-muted:       #5a7080;
+  --text-accent:      #4ade80;
+
+  /* Semantic */
+  --success:          #16a34a;
+  --warning:          #ca8a04;
+  --danger:           #dc2626;
+  --deadline-red:     #f87171;
+
+  /* Spacing scale (8px base) */
+  --sp-1:   4px;
+  --sp-2:   8px;
+  --sp-3:   12px;
+  --sp-4:   16px;
+  --sp-5:   20px;
+  --sp-6:   24px;
+  --sp-8:   32px;
+  --sp-10:  40px;
+  --sp-12:  48px;
+  --sp-16:  64px;
+  --sp-20:  80px;
+  --sp-24:  96px;
+
+  /* Type scale */
+  --h1:     clamp(2.25rem, 1.5rem + 3.75vw, 3.5rem);
+  --h2:     clamp(1.75rem, 1.25rem + 2.5vw, 2.5rem);
+  --h3:     clamp(1.375rem, 1.1rem + 1.375vw, 1.75rem);
+  --h4:     1.25rem;
+  --body-lg: 1.125rem;
+  --body:   1rem;
+  --body-sm: 0.875rem;
+  --label:  0.75rem;
+  --caption: 0.6875rem;
+
+  /* Motion */
+  --duration-fast:    150ms;
+  --duration-normal:  300ms;
+  --duration-slow:    500ms;
+  --ease-out:         cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─────────────────────────────────────────
+   Light mode overrides (Phase 2.5)
+   Applied when <html data-theme="light">
+   Accent colour stays identical — brand is
+   the same; only surfaces and text invert.
+───────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary:       #f8fafc;
+  --bg-secondary:     rgba(0, 0, 0, 0.04);
+  --bg-tertiary:      rgba(0, 0, 0, 0.06);
+  --border-subtle:    rgba(0, 0, 0, 0.08);
+  --border-emphasis:  rgba(0, 0, 0, 0.16);
+  --text-primary:     #0d141d;
+  --text-secondary:   #374151;
+  --text-muted:       #6b7280;
+  --text-accent:      #16a34a;
+}
+
+/* ─────────────────────────────────────────
+   Base styles
+───────────────────────────────────────── */
+html {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  font-size: var(--body);
+  line-height: 1.6;
+}
+
+/* Focus ring — accessibility */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

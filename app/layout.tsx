@@ -1,0 +1,29 @@
+import type { Metadata } from 'next'
+import { Manrope } from 'next/font/google'
+import './globals.css'
+
+const manrope = Manrope({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-manrope',
+  display: 'swap',
+})
+
+export const metadata: Metadata = {
+  title: 'ReadyPack — AI Compliance Documentation',
+  description:
+    'Nine compliance documents covering UK GDPR, EU AI Act, and DUAA. Delivered in 48 hours.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://readypack.co.uk'),
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en" data-theme="dark" className={manrope.variable}>
+      <body>{children}</body>
+    </html>
+  )
+}
