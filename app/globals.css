@@ -34,6 +34,11 @@
   --danger:           #dc2626;
   --deadline-red:     #f87171;
 
+  /* Fonts — next/font injects --font-manrope and --font-mono on <html>.
+     We expose --font-sans as an alias so design-kit CSS that references it
+     resolves to Manrope. --font-mono is already provided directly by next/font. */
+  --font-sans: var(--font-manrope), system-ui, -apple-system, sans-serif;
+
   /* Spacing scale (8px base) */
   --sp-1:   4px;
   --sp-2:   8px;
@@ -59,11 +64,36 @@
   --label:  0.75rem;
   --caption: 0.6875rem;
 
+  /* Radii */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-pill: 99px;
+
+  /* Shadows / Elevation */
+  --shadow-sm:          0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:          0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg:          0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-accent:      0 8px 24px rgba(22, 163, 74, 0.35);
+  --shadow-card-hover:  0 4px 24px rgba(22, 163, 74, 0.06);
+
   /* Motion */
   --duration-fast:    150ms;
   --duration-normal:  300ms;
   --duration-slow:    500ms;
   --ease-out:         cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Design-kit motion aliases (used by ported landing CSS) */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
+
+  /* Layout */
+  --content-max: 1200px;
+  --gutter:      24px;
+  --nav-height:  64px;
 }
 
 /* ─────────────────────────────────────────
@@ -97,10 +127,15 @@ html {
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-manrope), system-ui, -apple-system, sans-serif;
   font-size: var(--body);
   line-height: 1.6;
+  margin: 0;
 }
+
+* { box-sizing: border-box; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; }
 
 /* Focus ring — accessibility */
 :focus-visible {
