@@ -1,0 +1,370 @@
+/* Admin Generation Queue — Axiom design system. */
+
+.page {
+  padding: 32px;
+}
+
+.inner {
+  max-width: 1180px;
+}
+
+.pagehead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.pagehead h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: #818cf8;
+  position: relative;
+  display: inline-block;
+}
+
+.liveDot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 99px;
+  background: #818cf8;
+  animation: gqPulse 1.8s ease-out infinite;
+}
+
+@keyframes gqPulse {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  70%  { transform: scale(3.2); opacity: 0; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+
+.refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ─── Stats row ─── */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.stat {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.statLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.statValue {
+  margin: 8px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.statValueGreen { color: #4ade80; }
+.statValueRed   { color: var(--deadline-red); }
+.statValueAmber { color: #f59e0b; }
+
+@media (max-width: 1024px) {
+  .stats { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ─── Table ─── */
+.tableWrap {
+  margin-top: 28px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.thRight  { text-align: right !important; }
+.thCenter { text-align: center !important; }
+
+.colOrder   { width: 40%; }
+.colStatus  { width: 13%; }
+.colDocs    { width: 11%; }
+.colReused  { width: 9%; }
+.colCost    { width: 13%; }
+.colStarted { width: 14%; }
+
+.table tbody td {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: top;
+}
+
+.table tbody tr {
+  transition: background 150ms ease;
+}
+
+.table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.right  { text-align: right; }
+.center { text-align: center; }
+
+.custName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+
+.custEmail {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ─── Status badge ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.badgeCompleted {
+  background: rgba(22, 163, 74, 0.15);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: #4ade80;
+}
+
+.badgeRunning {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #818cf8;
+}
+
+.badgeFailed {
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  color: var(--deadline-red);
+}
+
+.badgeQueued {
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+/* ─── Document list ─── */
+.doclist {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.doclistRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.doclistRow:last-child {
+  border-bottom: 0;
+}
+
+.doclistIcon {
+  color: var(--text-muted);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.doclistName {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.doclistSize {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.doclistSpacer {
+  flex: 1;
+}
+
+.doclistLink {
+  font-size: 11px;
+  color: var(--text-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.doclistLink:hover {
+  text-decoration: underline;
+}
+
+/* ─── QA badge / Reuse pill ─── */
+.qaBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.qaBadgePass {
+  background: rgba(22, 163, 74, 0.1);
+  color: rgba(74, 222, 128, 0.8);
+  border: 1px solid rgba(22, 163, 74, 0.18);
+}
+
+.qaBadgePending {
+  background: rgba(202, 138, 4, 0.12);
+  color: #facc15;
+  border: 1px solid rgba(202, 138, 4, 0.25);
+}
+
+.qaBadgeRunning {
+  background: rgba(99, 102, 241, 0.13);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.qaBadgeFlagged {
+  background: rgba(251, 146, 60, 0.14);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.28);
+}
+
+.reusePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  white-space: nowrap;
+}
+
+/* ─── Numeric cells ─── */
+.num {
+  font-size: 14px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.numFull {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.cost {
+  font-size: 14px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.costZero    { color: var(--text-muted); }
+.costCharged { color: var(--text-primary); }
+
+.started {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.startedAbs {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.footerLine {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.empty {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  font-size: 14px;
+  margin-top: 16px;
+}

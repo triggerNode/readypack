@@ -1,0 +1,139 @@
+/* Shared admin chrome — sidebar, nav, user footer.
+   Converted verbatim from the Claude Design HTML (`design/Admin*.html`).
+   The sidebar markup is identical across all four admin design files. */
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  background: #060d12;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.logo {
+  padding: 28px 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo svg {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+.logoWord {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.navLabel {
+  padding: 0 20px;
+  margin: 28px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.nav {
+  margin-top: 12px;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 150ms ease, color 150ms ease;
+  user-select: none;
+  text-decoration: none;
+}
+
+.navItem:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+}
+
+.navItem svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.navItemActive {
+  color: var(--accent-primary);
+  background: rgba(22, 163, 74, 0.08);
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 0 8px 8px 0;
+  margin-left: -12px;
+  padding-left: 17px;
+}
+
+.navItemActive:hover {
+  color: var(--accent-primary);
+}
+
+.navItemActive svg {
+  color: var(--accent-primary);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.user {
+  margin: 0 12px 16px;
+  padding: 10px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.userEmail {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logoutBtn {
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.logoutBtn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.logoutBtn:disabled {
+  cursor: wait;
+}

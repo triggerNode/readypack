@@ -1,0 +1,356 @@
+/* Admin Dev Tools — Axiom design system. */
+
+.page {
+  padding: 32px;
+}
+
+.inner {
+  max-width: 700px;
+}
+
+.pagehead h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.pagesub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.envChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(202, 138, 4, 0.1);
+  border: 1px solid rgba(202, 138, 4, 0.25);
+  color: #facc15;
+}
+
+/* ─── Section ─── */
+.section {
+  margin-top: 36px;
+}
+
+.section + .section {
+  margin-top: 28px;
+  padding-top: 36px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 163, 74, 0.1);
+  border: 1px solid rgba(22, 163, 74, 0.18);
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.sectionHead h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.sectionStage {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 15px;
+  margin-left: 4px;
+}
+
+.sectionSub {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* ─── Form card ─── */
+.card {
+  margin-top: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field + .field {
+  margin-top: 20px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.fieldHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.control {
+  position: relative;
+}
+
+.input,
+.select {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 11px 13px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.inputMono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.input:hover,
+.select:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.input:focus,
+.select:focus {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235a7080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+}
+
+.select option {
+  background: #111a24;
+  color: var(--text-primary);
+}
+
+/* ─── Button ─── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 11px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: 200ms ease;
+}
+
+.btnPrimary {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(22, 163, 74, 0.3);
+}
+
+.btnPrimary:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.arrowPrefix {
+  font-weight: 700;
+}
+
+.formActions {
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* ─── Warning ─── */
+.warn {
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  background: rgba(202, 138, 4, 0.06);
+  border: 1px solid rgba(202, 138, 4, 0.28);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.warnIcon {
+  color: #facc15;
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.warnText {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #d6c486;
+}
+
+.warnText b {
+  color: #facc15;
+  font-weight: 700;
+}
+
+.warnText code {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #facc15;
+}
+
+/* ─── Error line ─── */
+.errorLine {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* ─── Success line ─── */
+.successLine {
+  margin: 0;
+  color: var(--accent-primary, #16a34a);
+  font-size: 13px;
+}
+
+/* ─── Terminal output ─── */
+.outputLabel {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.outputLabelLbl {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.outputStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: rgba(74, 222, 128, 0.8);
+}
+
+.outputStatusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: #4ade80;
+}
+
+.terminal {
+  margin-top: 8px;
+  background: #070c11;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.terminalBar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.terminalDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 99px;
+}
+
+.terminalDotR { background: #ff5f57; }
+.terminalDotY { background: #febc2e; }
+.terminalDotG { background: #28c840; }
+
+.terminalTitle {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.terminal pre {
+  margin: 0;
+  padding: 16px 18px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  max-height: 380px;
+}

@@ -1,0 +1,125 @@
+/* Inline disclosure forms + flag-level action buttons.
+   `.sbtn` styling from design/AdminCaseDetail.html (Red Flags panel). */
+
+.summary {
+  list-style: none;
+  user-select: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosureForm {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  min-width: 320px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.textarea {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  resize: vertical;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.textarea:focus {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.disclosureActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.errorLine {
+  font-size: 12px;
+  color: var(--danger);
+  margin: 0;
+}
+
+.doneLine {
+  font-size: 12px;
+  color: var(--accent-primary);
+  margin: 0;
+}
+
+/* ─── Flag-level buttons (.sbtn) ─── */
+.sbtnStack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sbtn {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: 200ms ease;
+}
+
+.sbtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sbtnGreenOutline {
+  background: transparent;
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.sbtnGreenOutline:hover {
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.sbtnSecondary {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.sbtnSecondary:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+}
+
+.sbtnMuted {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.sbtnMuted:hover {
+  color: var(--text-secondary);
+}
