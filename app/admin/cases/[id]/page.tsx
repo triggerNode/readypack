@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { requireAdmin } from '@/lib/auth'
 import { withSignedUrls } from '@/lib/documents/storage'
 import type { CaseRow } from '../../_lib/cases'
 import { CaseHeader } from './_components/CaseHeader'
@@ -42,6 +43,12 @@ type Params = Promise<{ id: string }>
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 
 export default async function AdminCaseDetailPage({ params }: { params: Params }) {
+  // Defence in depth: this page reads case data via the service-role client
+  // (RLS-bypassing), so it must enforce admin auth itself rather than relying
+  // only on the layout guard. Also ensures a logged-out visitor is redirected
+  // to login before notFound() can fire for a non-existent case id.
+  await requireAdmin()
+
   const { id } = await params
   if (!UUID_REGEX.test(id)) notFound()
 
