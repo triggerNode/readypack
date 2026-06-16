@@ -28,6 +28,8 @@ import {
 import styles from './landing.module.css'
 import { Nav } from '@/components/layout/Nav'
 import { Footer } from '@/components/layout/Footer'
+import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
+import { Article50Disclosure } from '@/components/layout/Article50Disclosure'
 import { HeroSection } from '@/components/landing/HeroSection'
 import { GapScanSection } from '@/components/landing/GapScanSection'
 import { PricingSection } from '@/components/landing/PricingSection'
@@ -123,16 +125,10 @@ export default function HomePage() {
   return (
     <>
       {/* 1. Announcement bar */}
-      <div className={styles.ann}>
-        <span className={styles['ann-dot']} />
-        <span>
-          EU AI Act enforcement begins{' '}
-          <span className={styles['ann-strong']}>2 August 2026</span> · DUAA Section 103
-          takes effect <span className={styles['ann-strong']}>19 June 2026</span>
-        </span>
-        <span className={styles['ann-sep']}>·</span>
-        <a href="#pricing">Get compliant →</a>
-      </div>
+      <AnnouncementBar />
+
+      {/* 1b. Article 50 disclosure */}
+      <Article50Disclosure />
 
       {/* 2. Nav */}
       <Nav />
@@ -585,7 +581,7 @@ export default function HomePage() {
                   standard you can expect.
                 </p>
                 <a
-                  href="#"
+                  href="/samples"
                   className={`${styles.btn} ${styles['btn-secondary']} ${styles['btn-lg']}`}
                 >
                   View Sample Document

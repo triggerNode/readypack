@@ -1,4 +1,5 @@
-// TODO: implement in Stage 3 — gap scan results
+import { redirect } from 'next/navigation'
+
 export default function GapScanResultPage() {
-  return null
+  redirect('/gap-scan')
 }

@@ -13,9 +13,9 @@ export function GapScanSection() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const trimmed = url.trim()
-    if (!trimmed) return
-    router.push(`/gap-scan?url=${encodeURIComponent(trimmed)}`)
+    // The gap scanner is not live yet — route interested visitors to pricing
+    // so they can get the full pack today instead of a dead-end scan page.
+    router.push('/#pricing')
   }
 
   return (
@@ -42,7 +42,7 @@ export function GapScanSection() {
               onChange={(event) => setUrl(event.target.value)}
             />
             <button className={styles['gapscan-submit']} type="submit">
-              Start Free Scan
+              Coming Soon
               <ArrowRight width={16} height={16} strokeWidth={ICON_STROKE} />
             </button>
           </form>

@@ -9,16 +9,45 @@ const ICON_STROKE = 1.5
 const EU_AI_ACT_DATE_MS = new Date('2026-08-02T00:00:00Z').getTime()
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 
+type Tier = 'solo' | 'procurement_ready' | 'adviser'
+
 function computeDaysUntil() {
   return Math.max(0, Math.ceil((EU_AI_ACT_DATE_MS - Date.now()) / MS_PER_DAY))
 }
 
 export function PricingSection() {
   const [daysUntil, setDaysUntil] = useState<number | null>(null)
+  const [loadingTier, setLoadingTier] = useState<Tier | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     setDaysUntil(computeDaysUntil())
   }, [])
+
+  async function handleCheckout(tier: Tier) {
+    if (loadingTier) return
+    setLoadingTier(tier)
+    setErrorMessage(null)
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier }),
+      })
+      const data = (await res.json()) as { url?: string; error?: string }
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? 'Failed to start checkout.')
+      }
+      window.location.href = data.url
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unexpected error.'
+      setErrorMessage(message)
+      setLoadingTier(null)
+    }
+  }
+
+  const labelFor = (tier: Tier, fallback: string) =>
+    loadingTier === tier ? 'Processing…' : fallback
 
   return (
     <section className={`${styles.section} ${styles['pricing-section']}`} id="pricing">
@@ -42,6 +71,12 @@ export function PricingSection() {
             <span suppressHydrationWarning>{daysUntil ?? '—'}</span> days from now
           </span>
         </div>
+
+        {errorMessage ? (
+          <div role="alert" style={{ textAlign: 'center', color: '#f87171', marginBottom: '16px' }}>
+            {errorMessage}
+          </div>
+        ) : null}
 
         <div className={styles['price-grid']}>
           {/* Tier 1: Solo */}
@@ -83,9 +118,14 @@ export function PricingSection() {
               </li>
             </ul>
             <div className={styles['price-cta']}>
-              <a href="#pricing" className={`${styles.btn} ${styles['btn-secondary']}`}>
-                Get Started
-              </a>
+              <button
+                type="button"
+                onClick={() => handleCheckout('solo')}
+                disabled={loadingTier !== null}
+                className={`${styles.btn} ${styles['btn-secondary']}`}
+              >
+                {labelFor('solo', 'Get Started')}
+              </button>
             </div>
           </div>
 
@@ -141,9 +181,14 @@ export function PricingSection() {
               </li>
             </ul>
             <div className={styles['price-cta']}>
-              <a href="#pricing" className={`${styles.btn} ${styles['btn-primary']}`}>
-                Get Procurement Ready
-              </a>
+              <button
+                type="button"
+                onClick={() => handleCheckout('procurement_ready')}
+                disabled={loadingTier !== null}
+                className={`${styles.btn} ${styles['btn-primary']}`}
+              >
+                {labelFor('procurement_ready', 'Get Procurement Ready')}
+              </button>
             </div>
           </div>
 
@@ -190,9 +235,14 @@ export function PricingSection() {
               </li>
             </ul>
             <div className={styles['price-cta']}>
-              <a href="#pricing" className={`${styles.btn} ${styles['btn-secondary']}`}>
-                Get Adviser Pack
-              </a>
+              <button
+                type="button"
+                onClick={() => handleCheckout('adviser')}
+                disabled={loadingTier !== null}
+                className={`${styles.btn} ${styles['btn-secondary']}`}
+              >
+                {labelFor('adviser', 'Get Adviser Pack')}
+              </button>
             </div>
           </div>
         </div>

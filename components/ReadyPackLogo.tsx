@@ -1,12 +1,16 @@
+import type { CSSProperties } from 'react'
+
 type Props = {
   className?: string
+  style?: CSSProperties
   ariaHidden?: boolean
 }
 
-export function ReadyPackLogo({ className, ariaHidden = true }: Props) {
+export function ReadyPackLogo({ className, style, ariaHidden = true }: Props) {
   return (
     <svg
       className={className}
+      style={style}
       viewBox="0 0 598 715"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
