@@ -280,8 +280,11 @@ export async function POST(request: NextRequest) {
       'Client Company'
     const tradingName: string | undefined =
       user?.trading_name || asString(normalised, 'trading_name') || undefined
-    const s7 = (normalised['7'] as Record<string, unknown>) || {}
-    const govContact = (s7.governance_contact as Record<string, unknown>) || {}
+    // normalised_answers is the FLAT canonical shape written by /api/intake/submit
+    // (company_name, sector, customer_geography, governance_contact … at top
+    // level). Read it flat here; the section-nested raw_answers shape is not used
+    // downstream. governance_contact / procurement_context stay nested objects.
+    const govContact = (normalised['governance_contact'] as Record<string, unknown>) || {}
     const contactName: string =
       asString(govContact, 'name') ||
       asString(normalised, 'contact_name') ||
@@ -296,11 +299,13 @@ export async function POST(request: NextRequest) {
       asString(normalised, 'contact_email') ||
       user?.email ||
       ''
-    const logoUrl: string | undefined = brandProfile?.logo_url || undefined
+    // Logo: prefer partner co-branding (brand_profiles), then fall back to the
+    // customer's own questionnaire upload (normalised.logo_url). Without this
+    // fallback a direct customer's uploaded logo never reaches the rendered PDF.
+    const logoUrl: string | undefined =
+      brandProfile?.logo_url || asString(normalised, 'logo_url') || undefined
 
-    const s1 = (normalised['1'] as Record<string, unknown>) || {}
-    const s2 = (normalised['2'] as Record<string, unknown>) || {}
-    const s9 = (normalised['9'] as Record<string, unknown>) || {}
+    const procurementContext = (normalised['procurement_context'] as Record<string, unknown>) || {}
 
     const orderRecord = order as Record<string, unknown>
     const tier: string =
@@ -311,15 +316,15 @@ export async function POST(request: NextRequest) {
       'solo'
 
     const targetTenderContext: Record<string, unknown> | string | undefined =
-      Object.keys(s9).length > 0 ? s9 : asString(normalised, 'target_tender_context') || undefined
-    const industry = asString(s1, 'sector') || asString(normalised, 'industry') || 'Technology'
+      Object.keys(procurementContext).length > 0 ? procurementContext : asString(normalised, 'target_tender_context') || undefined
+    const industry = asString(normalised, 'sector') || asString(normalised, 'industry') || 'Technology'
     const employeeCount =
-      asString(s1, 'employee_count') || asString(normalised, 'employee_count') || '1-10'
-    const customerGeo = asString(s2, 'customer_geography')
+      asString(normalised, 'employee_count') || '1-10'
+    const customerGeo = asString(normalised, 'customer_geography')
     const hasEuCustomers =
       customerGeo.includes('eu') || asBool(normalised, 'has_eu_customers')
     const euRevenuePercentage =
-      asString(s2, 'eu_customer_proportion') ||
+      asString(normalised, 'eu_customer_proportion') ||
       asString(normalised, 'eu_revenue_percentage') ||
       undefined
 
