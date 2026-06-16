@@ -30,14 +30,14 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: [/auth\.setup\.ts/, /admin-journey\.spec\.ts/, /scenarios\.spec\.ts/, /full-journey\.spec\.ts/, /portal\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /admin-journey\.spec\.ts/, /scenarios\.spec\.ts/, /full-journey\.spec\.ts/, /portal\.spec\.ts/, /smoke2-paid\.spec\.ts/, /verify-st2-5\.spec\.ts/],
     },
     // Logged-in admin journeys, reusing the saved admin session.
     {
       name: 'admin',
       use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/admin.json' },
       dependencies: ['setup'],
-      testMatch: /(admin-journey|scenarios|full-journey|portal)\.spec\.ts/,
+      testMatch: /(admin-journey|scenarios|full-journey|portal|smoke2-paid|verify-st2-5)\.spec\.ts/,
     },
   ],
   webServer: {

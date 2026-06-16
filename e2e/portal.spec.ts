@@ -34,7 +34,7 @@ async function seedSubmittedOrder(request: APIRequestContext, sb: SupabaseClient
   return orderId
 }
 
-const HELD = PERSONAS.find((p) => p.key === 'talentbridge')!
+const HELD = PERSONAS.find((p) => p.key === 'northwind')!
 
 test('delivery magic link logs a logged-out customer into their portal', async ({ browser, request }) => {
   const sb = db()
