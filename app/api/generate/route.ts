@@ -270,9 +270,14 @@ export async function POST(request: NextRequest) {
     )
     const fpHash = fingerprintHash(fingerprint)
 
-    // Client data for personalisation
+    // Client data for personalisation. Prefer the questionnaire company name so
+    // documents never show the placeholder org name ("Customer <id>") created at
+    // checkout — the submit route also refines org.name, this is belt-and-braces.
     const companyName: string =
-      org?.name || user?.company_name || asString(normalised, 'company_name') || 'Client Company'
+      asString(normalised, 'company_name') ||
+      user?.company_name ||
+      (org?.name && !/^Customer\s+[0-9a-f]{8}$/i.test(org.name) ? org.name : '') ||
+      'Client Company'
     const tradingName: string | undefined =
       user?.trading_name || asString(normalised, 'trading_name') || undefined
     const s7 = (normalised['7'] as Record<string, unknown>) || {}

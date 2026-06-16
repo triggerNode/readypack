@@ -385,6 +385,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Refine the org's placeholder name ("Customer <id>", set at checkout) to the
+  // real company name from the questionnaire. The org name flows onto generated
+  // documents, the admin queue, and the portal — so this fixes "Customer <id>"
+  // appearing on the actual compliance PDFs. Only overwrite with a genuine name.
+  {
+    const realCompanyName =
+      (typeof n1.company_name === 'string' && n1.company_name.trim()) ||
+      (typeof n1.trading_name === 'string' && n1.trading_name.trim()) ||
+      ''
+    if (realCompanyName && submission.org_id) {
+      const { error: orgNameError } = await supabaseAdmin
+        .from('organisations')
+        .update({ name: realCompanyName })
+        .eq('id', submission.org_id)
+      if (orgNameError) {
+        console.error('[intake/submit] org name refine failed:', orgNameError.message)
+      }
+    }
+  }
+
   // Notify the admin that a new submission landed (non-blocking).
   {
     const companyName =
