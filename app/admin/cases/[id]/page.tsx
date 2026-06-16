@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { withSignedUrls } from '@/lib/documents/storage'
 import type { CaseRow } from '../../_lib/cases'
 import { CaseHeader } from './_components/CaseHeader'
 import { DeliveryTab } from './_components/DeliveryTab'
@@ -101,15 +102,18 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   ])
 
   const flags = (flagsRes.data ?? []) as FlagRow[]
-  const documents = (docsRes.data ?? []) as ReadonlyArray<{
-    id: string
-    document_type: string
-    qa_status: 'pending' | 'passed' | 'flagged' | 'failed'
-    delivery_status: 'pending' | 'approved' | 'delivered' | 'failed'
-    generated_at: string | null
-    file_url: string | null
-    file_size_bytes: number | null
-  }>
+  // Sign the private-bucket document paths so the "View Draft PDF" links open.
+  const documents = await withSignedUrls(
+    (docsRes.data ?? []) as Array<{
+      id: string
+      document_type: string
+      qa_status: 'pending' | 'passed' | 'flagged' | 'failed'
+      delivery_status: 'pending' | 'approved' | 'delivered' | 'failed'
+      generated_at: string | null
+      file_url: string | null
+      file_size_bytes: number | null
+    }>,
+  )
   const aiTools = (aiToolsRes.data ?? []) as ReadonlyArray<{ id: string; tool_name: string; vendor: string | null }>
   const vendors = (vendorsRes.data ?? []) as ReadonlyArray<{ id: string; vendor_name: string }>
   const qaReport = qaReportsRes.data?.[0] ?? null

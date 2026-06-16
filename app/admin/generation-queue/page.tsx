@@ -4,6 +4,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { DOCUMENT_TYPE_TITLES } from '@/lib/documents/content-schemas'
+import { withSignedUrls } from '@/lib/documents/storage'
 import type { DocumentType } from '@/types/database'
 import styles from './generation-queue.module.css'
 
@@ -183,7 +184,8 @@ export default async function GenerationQueuePage() {
       .in('submission_id', submissionIds)
       .order('document_type', { ascending: true })
 
-    const docList = (docs || []) as GeneratedDocRow[]
+    // Sign the private-bucket paths so the per-document "View →" links open.
+    const docList = await withSignedUrls((docs || []) as GeneratedDocRow[])
     const subToJob = new Map<string, string>()
     for (const job of jobList) subToJob.set(job.submission_id, job.id)
     for (const doc of docList) {

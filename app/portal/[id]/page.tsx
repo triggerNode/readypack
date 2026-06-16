@@ -7,6 +7,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { withSignedUrls } from '@/lib/documents/storage'
 import type { DocumentType } from '@/types/database'
 import { CustomerPortalClient, type PortalDocument } from './_components/CustomerPortalClient'
 
@@ -169,9 +170,13 @@ export default async function CustomerPortalPage({ params }: { params: Params })
     render_metadata: Record<string, unknown> | null
   }>
 
+  // The `documents` bucket is private — replace each stored path with a
+  // short-lived signed URL the browser can actually open.
+  const signedDocs = await withSignedUrls(documentRows)
+
   // Order the documents by canonical pack order and merge in display metadata.
   const portalDocs: PortalDocument[] = DOC_ORDER.map((docType) => {
-    const row = documentRows.find((d) => d.document_type === docType)
+    const row = signedDocs.find((d) => d.document_type === docType)
     const meta = DOC_META[docType]
     return {
       id: row?.id ?? docType,

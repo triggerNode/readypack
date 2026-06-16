@@ -454,9 +454,9 @@ You MUST explicitly weave this context into the executive summaries and relevant
           console.error(`Upload error for ${docType}:`, uploadError)
         }
 
-        const { data: urlData } = supabaseAdmin.storage
-          .from('documents')
-          .getPublicUrl(fileName)
+        // Persist the storage PATH, not a URL. The `documents` bucket is
+        // private, so links are signed on demand at serve time (see
+        // lib/documents/storage.ts). Storing a public URL here returns 400.
 
         // Insert generated_documents row
         await supabaseAdmin.from('generated_documents').insert({
@@ -467,7 +467,7 @@ You MUST explicitly weave this context into the executive summaries and relevant
           generated_at: new Date().toISOString(),
           qa_status: 'pending',
           delivery_status: 'pending',
-          file_url: urlData.publicUrl,
+          file_url: fileName,
           content_json: contentJson as unknown as Record<string, unknown>,
           template_version: '1.0.0',
           renderer: 'react_pdf',

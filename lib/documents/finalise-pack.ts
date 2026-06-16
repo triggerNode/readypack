@@ -19,9 +19,10 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { ReactPdfRenderer, type DocumentContent } from '@/lib/documents/renderer'
+import { DOCUMENTS_BUCKET, resolveStoragePath } from '@/lib/documents/storage'
 import type { DocumentType } from '@/types/database'
 
-const STORAGE_BUCKET = 'documents'
+const STORAGE_BUCKET = DOCUMENTS_BUCKET
 
 interface PersistedDocRow {
   id: string
@@ -52,16 +53,6 @@ function readPersonalisation(
       ? personalisation.companyName
       : '') || 'Your Company'
   return { companyName }
-}
-
-// Re-build the storage path from a public URL. Supabase public URLs are of
-// the form `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`.
-// We use the path so we can re-upload to the exact same key with upsert.
-function storagePathFromPublicUrl(publicUrl: string): string | null {
-  const marker = `/storage/v1/object/public/${STORAGE_BUCKET}/`
-  const i = publicUrl.indexOf(marker)
-  if (i === -1) return null
-  return publicUrl.slice(i + marker.length)
 }
 
 export async function finaliseOrderPack(orderId: string): Promise<FinaliseResult> {
@@ -110,8 +101,7 @@ export async function finaliseOrderPack(orderId: string): Promise<FinaliseResult
       // Overwrite the draft file in place when we can resolve the original
       // path; otherwise fall back to a predictable final path.
       const fallbackPath = `${orderId}/${row.document_type}_v${row.version_number}_final.pdf`
-      const storagePath =
-        (row.file_url && storagePathFromPublicUrl(row.file_url)) || fallbackPath
+      const storagePath = resolveStoragePath(row.file_url) || fallbackPath
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
@@ -120,10 +110,6 @@ export async function finaliseOrderPack(orderId: string): Promise<FinaliseResult
           upsert: true,
         })
       if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`)
-
-      const { data: urlData } = supabaseAdmin.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(storagePath)
 
       const nextMeta: Record<string, unknown> = {
         ...(row.render_metadata ?? {}),
@@ -134,7 +120,7 @@ export async function finaliseOrderPack(orderId: string): Promise<FinaliseResult
       const { error: updateError } = await supabaseAdmin
         .from('generated_documents')
         .update({
-          file_url: urlData.publicUrl,
+          file_url: storagePath,
           delivery_status: 'delivered',
           render_metadata: nextMeta,
           file_size_bytes: renderResult.file_size_bytes,
