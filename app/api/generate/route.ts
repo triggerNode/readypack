@@ -71,6 +71,39 @@ function calcCostUsd(promptTokens: number, completionTokens: number): number {
   return (promptTokens * COST_INPUT_PER_M + completionTokens * COST_OUTPUT_PER_M) / 1_000_000
 }
 
+// Output token ceiling per document. Most documents fit in 4096, but the
+// longer ones (DPIA-Lite especially) were truncating at 4096 and returning
+// unparseable JSON. The cap only bounds the maximum — we are billed for tokens
+// actually produced — so a generous ceiling is free insurance against truncation.
+const DEFAULT_MAX_OUTPUT_TOKENS = 8192
+const MAX_OUTPUT_TOKENS_BY_DOC: Partial<Record<DocumentType, number>> = {
+  dpia_lite: 12000,
+  ai_risk_register: 12000,
+  procurement_response_memo: 12000,
+}
+
+// Tolerant JSON parse for model output: strips code fences, then recovers from
+// leading/trailing prose by taking the outermost object span. Throws a clear,
+// document-scoped error if no valid JSON object can be extracted.
+function parseModelJson(raw: string, docType: DocumentType): unknown {
+  let text = raw.trim()
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  }
+  try {
+    return JSON.parse(text)
+  } catch {
+    const start = text.indexOf('{')
+    const end = text.lastIndexOf('}')
+    if (start !== -1 && end > start) {
+      return JSON.parse(text.slice(start, end + 1))
+    }
+    throw new Error(
+      `${docType}: model did not return valid JSON (length ${text.length}): ${text.slice(0, 120)}…`,
+    )
+  }
+}
+
 function asString(o: Record<string, unknown> | undefined, key: string): string {
   if (!o) return ''
   const v = o[key]
@@ -370,6 +403,7 @@ You MUST explicitly weave this context into the executive summaries and relevant
     let totalCost = 0
     let reusedCount = 0
     let docsGenerated = 0
+    const failures: Array<{ document_type: DocumentType; error: string }> = []
     const generatedContent: Partial<Record<DocumentType, SpecificDocumentContent>> = {}
 
     for (const docType of DOCUMENT_TYPE_ORDER) {
@@ -404,10 +438,11 @@ You MUST explicitly weave this context into the executive summaries and relevant
           reusedCount++
         } else {
           const userPrompt = PROMPT_BUILDERS[docType](intake) + deeperTailoringInstruction
+          const maxTokens = MAX_OUTPUT_TOKENS_BY_DOC[docType] ?? DEFAULT_MAX_OUTPUT_TOKENS
 
           const response = await anthropic.messages.create({
             model: CLAUDE_MODEL,
-            max_tokens: 4096,
+            max_tokens: maxTokens,
             system: SYSTEM_PROMPT,
             messages: [{ role: 'user', content: userPrompt }],
           })
@@ -416,14 +451,13 @@ You MUST explicitly weave this context into the executive summaries and relevant
           if (!textContent || textContent.type !== 'text') {
             throw new Error(`No text content in Claude response for ${docType}`)
           }
-
-          let rawText = textContent.text.trim()
-          // Defensive: strip code fences if Claude includes them
-          if (rawText.startsWith('```')) {
-            rawText = rawText.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+          // A max_tokens stop means the JSON was cut off — fail clearly here
+          // rather than emitting an opaque parse error downstream.
+          if (response.stop_reason === 'max_tokens') {
+            throw new Error(`${docType}: response truncated at the ${maxTokens}-token cap`)
           }
 
-          contentJson = JSON.parse(rawText) as SpecificDocumentContent
+          contentJson = parseModelJson(textContent.text, docType) as SpecificDocumentContent
           // Re-apply real PII into the placeholder slots the model received.
           contentJson = deepReplacePlaceholders(contentJson, pseudonymReplacements)
           promptTokens = response.usage.input_tokens
@@ -504,16 +538,46 @@ You MUST explicitly weave this context into the executive summaries and relevant
 
         docsGenerated++
       } catch (docError) {
+        const message = docError instanceof Error ? docError.message : 'Unknown error'
         console.error(`Error generating ${docType}:`, docError)
+        failures.push({ document_type: docType, error: message })
         await supabaseAdmin.from('generation_events').insert({
           order_id,
           document_type: docType,
           model: CLAUDE_MODEL,
           status: 'failed',
-          error_message: docError instanceof Error ? docError.message : 'Unknown error',
+          error_message: message,
           content_reused: false,
         })
       }
+    }
+
+    // Hard stop: a run that produced zero documents is a FAILURE, not a
+    // success. Previously the pipeline reported ok:true with 0 documents and
+    // advanced the order to qa_review — which is exactly how the dead-model
+    // outage stayed invisible for a month. Mark the job failed, leave the
+    // order out of the delivery flow, and surface the reasons.
+    if (docsGenerated === 0) {
+      const summary = failures.map((f) => `${f.document_type}: ${f.error}`).join('; ').slice(0, 1000)
+      await supabaseAdmin
+        .from('document_generation_jobs')
+        .update({ status: 'failed', completed_at: new Date().toISOString(), error_message: summary })
+        .eq('id', job.id)
+      await supabaseAdmin
+        .from('orders')
+        .update({ delivery_status: 'failed', updated_at: new Date().toISOString() })
+        .eq('id', order_id)
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'No documents were generated',
+          job_id: job.id,
+          documents_generated: 0,
+          documents_failed: failures.length,
+          failures,
+        },
+        { status: 502 },
+      )
     }
 
     // Stage 6: run QA layer on the generated content
@@ -555,10 +619,10 @@ You MUST explicitly weave this context into the executive summaries and relevant
       })
       .eq('id', job.id)
 
-    // Update order delivery_status — escalate if QA flagged it, otherwise qa_review
-    const finalOrderStatus: 'escalated' | 'qa_review' = qaHumanEscalation
-      ? 'escalated'
-      : 'qa_review'
+    // Update order delivery_status — escalate if QA flagged it OR any document
+    // failed (a partial pack must never be mistaken for a complete one).
+    const finalOrderStatus: 'escalated' | 'qa_review' =
+      qaHumanEscalation || failures.length > 0 ? 'escalated' : 'qa_review'
     await supabaseAdmin
       .from('orders')
       .update({ delivery_status: finalOrderStatus, updated_at: new Date().toISOString() })
@@ -568,6 +632,8 @@ You MUST explicitly weave this context into the executive summaries and relevant
       ok: true,
       job_id: job.id,
       documents_generated: docsGenerated,
+      documents_failed: failures.length,
+      failures,
       documents_reused: reusedCount,
       total_tokens: totalTokens,
       estimated_cost_usd: totalCost.toFixed(4),

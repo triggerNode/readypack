@@ -64,7 +64,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   // ── Related rows (parallel) ───────────────────────────────
   const submissionId = caseRow.submission_id ?? null
 
-  const [flagsRes, docsRes, aiToolsRes, vendorsRes, qaReportsRes] = await Promise.all([
+  const [flagsRes, docsRes, aiToolsRes, vendorsRes, qaReportsRes, genEventsRes] = await Promise.all([
     submissionId
       ? supabaseAdmin
           .from('risk_flags')
@@ -99,6 +99,14 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
           .order('created_at', { ascending: false })
           .limit(1)
       : Promise.resolve({ data: [], error: null } as const),
+    // Failed document generations for this order (id === order id). Used to
+    // show "N of 9 generated, M failed" with reasons in the Documents tab.
+    supabaseAdmin
+      .from('generation_events')
+      .select('document_type, error_message, status, created_at')
+      .eq('order_id', id)
+      .eq('status', 'failed')
+      .order('created_at', { ascending: false }),
   ])
 
   const flags = (flagsRes.data ?? []) as FlagRow[]
@@ -114,6 +122,27 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
       file_size_bytes: number | null
     }>,
   )
+  // Build the failed-document list: most recent failure per document type,
+  // excluding any type that ultimately generated successfully (e.g. after a
+  // re-trigger). Drives the "N of 9 generated, M failed" summary.
+  const TOTAL_PACK_DOCUMENTS = 9
+  const successfulDocTypes = new Set(documents.map((d) => d.document_type))
+  const failedEvents = (genEventsRes.data ?? []) as ReadonlyArray<{
+    document_type: string
+    error_message: string | null
+  }>
+  const seenFailedTypes = new Set<string>()
+  const documentFailures: Array<{ documentType: string; error: string }> = []
+  for (const ev of failedEvents) {
+    if (successfulDocTypes.has(ev.document_type)) continue
+    if (seenFailedTypes.has(ev.document_type)) continue
+    seenFailedTypes.add(ev.document_type)
+    documentFailures.push({
+      documentType: ev.document_type,
+      error: ev.error_message ?? 'Generation failed',
+    })
+  }
+
   const aiTools = (aiToolsRes.data ?? []) as ReadonlyArray<{ id: string; tool_name: string; vendor: string | null }>
   const vendors = (vendorsRes.data ?? []) as ReadonlyArray<{ id: string; vendor_name: string }>
   const qaReport = qaReportsRes.data?.[0] ?? null
@@ -218,7 +247,11 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
           </Tabs.Panel>
 
           <Tabs.Panel value="documents">
-            <DocumentsTab documents={documents} />
+            <DocumentsTab
+              documents={documents}
+              expectedCount={TOTAL_PACK_DOCUMENTS}
+              failures={documentFailures}
+            />
           </Tabs.Panel>
 
           <Tabs.Panel value="qa">

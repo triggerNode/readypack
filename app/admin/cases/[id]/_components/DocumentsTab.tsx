@@ -14,8 +14,15 @@ type DocumentRow = {
   file_size_bytes?: number | null
 }
 
+type DocumentFailure = {
+  documentType: string
+  error: string
+}
+
 type Props = {
   documents: ReadonlyArray<DocumentRow>
+  expectedCount?: number
+  failures?: ReadonlyArray<DocumentFailure>
 }
 
 function docTitle(type: string): string {
@@ -57,9 +64,11 @@ function qaBadge(status: DocStatus): { label: string; className: string } {
   }
 }
 
-export function DocumentsTab({ documents }: Props) {
+export function DocumentsTab({ documents, expectedCount, failures = [] }: Props) {
   const allPassed =
     documents.length > 0 && documents.every(d => d.qa_status === 'passed')
+  const failedCount = failures.length
+  const expected = expectedCount ?? documents.length
 
   return (
     <>
@@ -67,8 +76,12 @@ export function DocumentsTab({ documents }: Props) {
         <div className={styles.panelHeadLeft}>
           <h2>Generated Documents</h2>
           <span className={styles.panelSub}>
-            {documents.length === 0 ? (
+            {documents.length === 0 && failedCount === 0 ? (
               'No documents generated yet'
+            ) : failedCount > 0 ? (
+              <span className={styles.panelSubFail}>
+                {documents.length} of {expected} generated · {failedCount} failed
+              </span>
             ) : allPassed ? (
               <span className={styles.panelSubOk}>
                 All {documents.length} documents generated successfully
@@ -81,6 +94,21 @@ export function DocumentsTab({ documents }: Props) {
           </span>
         </div>
       </div>
+
+      {failedCount > 0 ? (
+        <div className={styles.failBanner}>
+          <p className={styles.failBannerTitle}>
+            {failedCount} document{failedCount === 1 ? '' : 's'} failed to generate
+          </p>
+          <ul className={styles.failList}>
+            {failures.map(f => (
+              <li key={f.documentType} className={styles.failItem}>
+                <strong>{docTitle(f.documentType)}</strong> — {f.error}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {documents.length === 0 ? (
         <div className={styles.empty}>No documents generated yet.</div>
