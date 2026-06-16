@@ -49,3 +49,6 @@ design/
 assets/
 .claude/
 
+
+# Playwright stored auth state (contains live session tokens)
+/e2e/.auth/
