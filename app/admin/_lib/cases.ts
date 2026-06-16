@@ -76,11 +76,31 @@ export function planLabel(plan: PlanCode | string | null): string {
   return `${known.label} · ${known.price}`
 }
 
-export function customerDisplayName(c: Pick<CaseRow, 'company_name' | 'trading_name' | 'client_org_name' | 'customer_email'>): string {
+// The questionnaire-provided company name, used when the sign-up record has no
+// company_name (e.g. dev/test orders). Flat `company_name` is written to
+// normalised_answers on submit; raw_answers['1'].company_name is the fallback.
+function intakeCompanyName(
+  normalised: Record<string, unknown> | null,
+  raw: Record<string, unknown> | null,
+): string | undefined {
+  const flat = typeof normalised?.company_name === 'string' ? normalised.company_name.trim() : ''
+  if (flat) return flat
+  const section1 = (raw?.['1'] ?? null) as Record<string, unknown> | null
+  const fromSection = typeof section1?.company_name === 'string' ? section1.company_name.trim() : ''
+  return fromSection || undefined
+}
+
+export function customerDisplayName(
+  c: Pick<
+    CaseRow,
+    'company_name' | 'trading_name' | 'client_org_name' | 'customer_email' | 'normalised_answers' | 'raw_answers'
+  >,
+): string {
   return (
     c.client_org_name ??
     c.company_name ??
     c.trading_name ??
+    intakeCompanyName(c.normalised_answers, c.raw_answers) ??
     c.customer_email ??
     'Unknown customer'
   )
@@ -152,6 +172,7 @@ export function applyCasesFilters(
       c.company_name,
       c.trading_name,
       c.client_org_name,
+      customerDisplayName(c),
     ]
       .filter(Boolean)
       .join(' ')

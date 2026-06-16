@@ -371,10 +371,22 @@ export async function approvePackAction(
     const c = await loadCase(parsed.data.caseId)
     if (!c) return { success: false, error: 'Case not found' }
 
-    if (c.critical_flag_count > 0) {
-      return {
-        success: false,
-        error: `Cannot approve: ${c.critical_flag_count} unresolved critical flag(s) must be resolved or overridden first.`,
+    // Block approval while any high/critical-severity flag is still open.
+    // (Flags never reach 'critical' severity, so the cases view's
+    // critical_flag_count was always 0 — smoke-test finding #5. Count the real
+    // open high-risk flags instead.)
+    if (c.submission_id) {
+      const { count: blockingFlags } = await supabaseAdmin
+        .from('risk_flags')
+        .select('id', { count: 'exact', head: true })
+        .eq('submission_id', c.submission_id)
+        .eq('status', 'open')
+        .in('severity', ['high', 'critical'])
+      if ((blockingFlags ?? 0) > 0) {
+        return {
+          success: false,
+          error: `Cannot approve: ${blockingFlags} unresolved high-risk flag(s) must be resolved or overridden first.`,
+        }
       }
     }
 

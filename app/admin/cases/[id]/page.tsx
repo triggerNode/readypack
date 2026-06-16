@@ -151,6 +151,13 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
     .filter(f => f.status === 'open')
     .map(f => ({ id: f.id, severity: f.severity, explanation: f.explanation }))
 
+  // Approval is blocked while any high/critical-severity flag is still open.
+  // (Flags never reach 'critical' severity, so the old critical_flag_count
+  // signal was always 0 — see smoke-test finding #5.)
+  const hasBlockingFlags = flags.some(
+    f => f.status === 'open' && (f.severity === 'high' || f.severity === 'critical'),
+  )
+
   // Synthesise the activity timeline from the records we have. This is
   // intentionally light-touch — Stage 7 has no dedicated event log table,
   // so we surface the most useful signals already in the schema.
@@ -181,7 +188,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
-        <CaseHeader c={caseRow} />
+        <CaseHeader c={caseRow} hasBlockingFlags={hasBlockingFlags} />
 
         <Tabs.Root defaultValue="overview">
           <Tabs.List>

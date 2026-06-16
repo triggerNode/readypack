@@ -12,6 +12,9 @@ import styles from '../case-detail.module.css'
 
 type Props = {
   c: CaseRow
+  // True when the case has open high/critical-severity flags that must be
+  // resolved or overridden before the pack can be approved.
+  hasBlockingFlags: boolean
 }
 
 function formatOrderedAt(iso: string): string {
@@ -23,9 +26,8 @@ function formatOrderedAt(iso: string): string {
   return `Ordered ${day} ${month} ${year}, ${time}`
 }
 
-export function CaseHeader({ c }: Props) {
+export function CaseHeader({ c, hasBlockingFlags }: Props) {
   const name = customerDisplayName(c)
-  const hasCritical = c.critical_flag_count > 0
   const isQaRunning = c.status === 'in_progress'
 
   return (
@@ -55,7 +57,7 @@ export function CaseHeader({ c }: Props) {
         <div className={styles.caseheadRow2}>
           <ApprovePackButton
             caseId={c.id}
-            hasCriticalFlags={hasCritical}
+            hasCriticalFlags={hasBlockingFlags}
             isQaRunning={isQaRunning}
           />
           <RequestMoreInfoForm caseId={c.id} />

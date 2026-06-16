@@ -108,7 +108,9 @@ export function OverviewTab({ c, documents, aiTools, vendors, openFlags, activit
         </div>
         <div className={styles.qaCount}>
           {c.open_flag_count} {c.open_flag_count === 1 ? 'flag' : 'flags'} detected
-          {c.critical_flag_count > 0 ? ` · ${c.critical_flag_count} critical` : ''}
+          {c.risk_level === 'critical' || c.risk_level === 'high'
+            ? ` · ${c.risk_level} risk`
+            : ''}
         </div>
         {openFlags.length === 0 ? (
           <div className={styles.qaNote}>No open flags.</div>

@@ -89,7 +89,7 @@ export function ApprovePackButton({
 }) {
   const [result, formAction] = useFormState(approvePackAction, null)
   const lockReason = hasCriticalFlags
-    ? 'Unresolved critical flags must be resolved first.'
+    ? 'Unresolved high-risk flags must be resolved or overridden first.'
     : isQaRunning
     ? 'QA is still running.'
     : undefined
