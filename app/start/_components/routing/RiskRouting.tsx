@@ -1,13 +1,19 @@
 'use client'
 
+import Link from 'next/link'
 import type { RiskLevel } from '../types'
 
 type Props = {
   riskLevel: RiskLevel
+  /** Order id — present once the questionnaire is submitted; lets us link to
+   *  the live Pack Progress screen. Null only if the order link is unavailable. */
+  orderId: string | null
 }
 
-export function RiskRouting({ riskLevel }: Props) {
+export function RiskRouting({ riskLevel, orderId }: Props) {
   if (riskLevel === 'critical') {
+    // No generation is enqueued for critical cases — a specialist makes contact
+    // first — so there is no live progress to show. Keep the contact-only screen.
     return (
       <RoutingShell variant="danger" icon={<AlertIcon />} heading="This case needs specialist attention.">
         <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
@@ -29,6 +35,7 @@ export function RiskRouting({ riskLevel }: Props) {
         <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 8 }}>
           We&apos;ll send you an update by email once the review is underway.
         </p>
+        <ProgressLink orderId={orderId} />
         <ContactLine />
       </RoutingShell>
     )
@@ -42,8 +49,33 @@ export function RiskRouting({ riskLevel }: Props) {
         within 48 hours. You don&apos;t need to do anything else.
       </p>
       <Timeline />
+      <ProgressLink orderId={orderId} />
       <ContactLine />
     </RoutingShell>
+  )
+}
+
+function ProgressLink({ orderId }: { orderId: string | null }) {
+  if (!orderId) return null
+  return (
+    <Link
+      href={`/status/${orderId}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 24,
+        padding: '13px 24px',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--accent-primary)',
+        color: '#fff',
+        fontWeight: 600,
+        fontSize: 'var(--body-sm)',
+        textDecoration: 'none',
+      }}
+    >
+      View pack progress →
+    </Link>
   )
 }
 

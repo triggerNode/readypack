@@ -310,6 +310,9 @@ type SubmitConfirmationEmailInput = {
   customerName?: string | null
   riskLevel: string
   planName?: string | null
+  /** Absolute URL to the live Pack Progress screen. Omitted for critical cases
+   *  (a specialist makes contact first — there is no live progress to show). */
+  statusUrl?: string | null
 }
 
 function timelineForRisk(riskLevel: string): string {
@@ -329,10 +332,25 @@ export function buildSubmitConfirmationEmail({
   customerName,
   riskLevel,
   planName,
+  statusUrl,
 }: SubmitConfirmationEmailInput): string {
   const safeName = customerName ? escapeHtml(customerName) : null
   const safePlan = planName ? escapeHtml(planName) : null
   const timeline = timelineForRisk(riskLevel)
+  const safeStatusUrl = statusUrl ? escapeHtml(statusUrl) : null
+  const progressCta = safeStatusUrl
+    ? `<tr>
+            <td style="padding-bottom:24px;">
+              <a href="${safeStatusUrl}"
+                 style="display:inline-block;background:#16A34A;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 26px;border-radius:8px;">
+                View pack progress &nbsp;&rarr;
+              </a>
+              <p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:#7a8699;">
+                Track your pack live and return any time via this link.
+              </p>
+            </td>
+          </tr>`
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -378,6 +396,7 @@ export function buildSubmitConfirmationEmail({
               </table>
             </td>
           </tr>
+          ${progressCta}
           <tr>
             <td style="padding-top:8px;">
               <p style="margin:0;font-size:14px;line-height:1.6;color:#b6c0cf;">

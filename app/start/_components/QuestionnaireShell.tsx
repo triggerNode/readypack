@@ -65,7 +65,8 @@ export function QuestionnaireShell({
   const [isDirty, setIsDirty] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [submitState, setSubmitState] = useState<
-    { status: 'pending' } | { status: 'submitted'; riskLevel: RiskLevel }
+    | { status: 'pending' }
+    | { status: 'submitted'; riskLevel: RiskLevel; orderId: string | null }
   >({ status: 'pending' })
 
   // Compute skipped sections (4 + 5 if "no AI tools" picked, etc.)
@@ -265,8 +266,12 @@ export function QuestionnaireShell({
           setIsSaving(false)
           return
         }
-        const data = (await res.json()) as { riskLevel: RiskLevel }
-        setSubmitState({ status: 'submitted', riskLevel: data.riskLevel })
+        const data = (await res.json()) as { riskLevel: RiskLevel; orderId?: string | null }
+        setSubmitState({
+          status: 'submitted',
+          riskLevel: data.riskLevel,
+          orderId: data.orderId ?? null,
+        })
       } catch {
         showToast('Submit failed. Please try again.')
       } finally {
@@ -277,7 +282,7 @@ export function QuestionnaireShell({
   )
 
   if (submitState.status === 'submitted') {
-    return <RiskRouting riskLevel={submitState.riskLevel} />
+    return <RiskRouting riskLevel={submitState.riskLevel} orderId={submitState.orderId} />
   }
 
   if (showWelcome) {
