@@ -5,6 +5,7 @@ import { resend } from '@/lib/resend'
 import { buildSubmitConfirmationEmail } from '@/lib/email'
 import { notifyAdmin } from '@/lib/notifications'
 import { scoreRisk, type RawAnswers } from '@/lib/risk/score'
+import { enqueueGeneration } from '@/lib/documents/generation-queue'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -286,11 +287,18 @@ export async function POST(req: NextRequest) {
         (typeof n1.trading_name === 'string' && n1.trading_name) ||
         (typeof n1.company_name === 'string' && n1.company_name) ||
         null
+      // Link to the live Pack Progress screen — except for critical cases, where
+      // a specialist makes contact first and there is no live progress to show.
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+      const statusUrl =
+        riskLevel !== 'critical' && submission.order_id
+          ? `${appUrl}/status/${submission.order_id}`
+          : null
       const sendResult = await resend.emails.send({
         from: FROM_ADDRESS,
         to: [user.email],
         subject: "We've received your ReadyPack answers",
-        html: buildSubmitConfirmationEmail({ customerName, riskLevel, planName }),
+        html: buildSubmitConfirmationEmail({ customerName, riskLevel, planName, statusUrl }),
       })
       if (sendResult.error) {
         console.error('[intake/submit] confirmation email failed:', sendResult.error.message)
@@ -302,16 +310,21 @@ export async function POST(req: NextRequest) {
 
   // Auto-trigger document generation for low/medium risk cases. High/critical
   // cases wait for an admin to review flags and trigger generation manually.
-  // Fire-and-forget — we do not await this so the intake submit response is not
-  // delayed by the (multi-minute) generation pipeline.
+  // Durable enqueue (not fire-and-forget): write a `queued` generation job and
+  // best-effort kick the worker. The Vercel Cron drain is the backstop if the
+  // kick never lands. enqueueGeneration is fast (a few queries + a non-blocking
+  // kick), so awaiting it just guarantees the durable job row is written before
+  // we respond — it does NOT wait on the multi-minute pipeline.
   if ((riskLevel === 'low' || riskLevel === 'medium') && submission.order_id) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    fetch(`${appUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: submission.order_id, _internal: true }),
-    }).catch((err) => console.error('[intake/submit] auto-generation trigger failed:', err))
+    await enqueueGeneration(submission.order_id).catch((err) =>
+      console.error('[intake/submit] enqueue failed:', err),
+    )
   }
 
-  return NextResponse.json({ ok: true, riskLevel, submissionId: submission.id })
+  return NextResponse.json({
+    ok: true,
+    riskLevel,
+    submissionId: submission.id,
+    orderId: submission.order_id ?? null,
+  })
 }

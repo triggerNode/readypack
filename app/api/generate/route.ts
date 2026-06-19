@@ -19,6 +19,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { anthropic } from '@/lib/anthropic'
+import { parseModelJson } from '@/lib/documents/parse-model-json'
+import { generateProcurementMemo } from '@/lib/documents/generate-procurement-memo'
 import { ReactPdfRenderer, type DocumentContent } from '@/lib/documents/renderer'
 import { SYSTEM_PROMPT } from '@/lib/documents/prompts/system-prompt'
 import {
@@ -48,7 +50,11 @@ import { buildPrompt as buildProcurementMemoPrompt } from '@/lib/documents/promp
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // 5 minutes for full pipeline
+// 800s is the GA fluid-compute max on Vercel Pro/Enterprise. The full pipeline
+// is ~5 min; this headroom keeps a synchronous run (admin manual + e2e + the
+// cron worker) from being cut off. The durable backstop is the queued-job + cron
+// model — a dead invocation resumes on the next tick (generation is idempotent).
+export const maxDuration = 800
 
 const PROMPT_BUILDERS: Record<DocumentType, PromptBuilder> = {
   ai_use_statement: buildAiUseStatementPrompt,
@@ -80,28 +86,6 @@ const MAX_OUTPUT_TOKENS_BY_DOC: Partial<Record<DocumentType, number>> = {
   dpia_lite: 12000,
   ai_risk_register: 12000,
   procurement_response_memo: 12000,
-}
-
-// Tolerant JSON parse for model output: strips code fences, then recovers from
-// leading/trailing prose by taking the outermost object span. Throws a clear,
-// document-scoped error if no valid JSON object can be extracted.
-function parseModelJson(raw: string, docType: DocumentType): unknown {
-  let text = raw.trim()
-  if (text.startsWith('```')) {
-    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-  }
-  try {
-    return JSON.parse(text)
-  } catch {
-    const start = text.indexOf('{')
-    const end = text.lastIndexOf('}')
-    if (start !== -1 && end > start) {
-      return JSON.parse(text.slice(start, end + 1))
-    }
-    throw new Error(
-      `${docType}: model did not return valid JSON (length ${text.length}): ${text.slice(0, 120)}…`,
-    )
-  }
 }
 
 function asString(o: Record<string, unknown> | undefined, key: string): string {
@@ -179,16 +163,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Intake submission not found' }, { status: 404 })
     }
 
-    // Idempotency guard. If documents already exist for this submission, the
-    // order has already been generated — return the existing job rather than
-    // creating duplicate documents, jobs, and events on a repeat POST.
-    const { data: existingDocs } = await supabaseAdmin
+    // Resumable idempotency. Load any documents already generated for this
+    // submission. If all 9 exist, the pack is complete — return rather than
+    // regenerating. If a partial set exists (a prior worker invocation died
+    // mid-pack), keep them and only generate the MISSING ones below. The queue +
+    // cron may re-invoke this worker, so it must converge, never duplicate.
+    const { data: existingDocsData } = await supabaseAdmin
       .from('generated_documents')
-      .select('id')
+      .select('document_type, content_json')
       .eq('submission_id', submission.id)
-      .limit(1)
 
-    if (existingDocs && existingDocs.length > 0) {
+    const existingByType = new Map<DocumentType, SpecificDocumentContent>()
+    for (const d of (existingDocsData ?? []) as Array<{
+      document_type: DocumentType
+      content_json: unknown
+    }>) {
+      existingByType.set(d.document_type, d.content_json as SpecificDocumentContent)
+    }
+
+    if (existingByType.size >= DOCUMENT_TYPE_ORDER.length) {
       const { data: existingJob } = await supabaseAdmin
         .from('document_generation_jobs')
         .select('id, status')
@@ -233,25 +226,57 @@ export async function POST(request: NextRequest) {
     const user = userResult.data
     const brandProfile = brandResult.data
 
-    // Create generation job
-    const { data: job, error: jobErr } = await supabaseAdmin
+    // Claim an existing queued/running job for this submission (the durable
+    // trigger enqueues a 'queued' job; the kick or cron re-invokes us), else
+    // create one. Claiming avoids orphan duplicate jobs on the queue.
+    const { data: claimable } = await supabaseAdmin
       .from('document_generation_jobs')
-      .insert({
-        order_id,
-        submission_id: submission.id,
-        org_id: order.client_org_id,
-        status: 'running',
-        started_at: new Date().toISOString(),
-        attempt_count: 1,
-      })
-      .select()
-      .single()
+      .select('id, attempt_count')
+      .eq('submission_id', submission.id)
+      .in('status', ['queued', 'running'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    if (jobErr || !job) {
-      return NextResponse.json(
-        { error: 'Failed to create generation job: ' + (jobErr?.message || 'unknown') },
-        { status: 500 },
-      )
+    let job: { id: string }
+    if (claimable) {
+      const { data: updated, error: updErr } = await supabaseAdmin
+        .from('document_generation_jobs')
+        .update({
+          status: 'running',
+          started_at: new Date().toISOString(),
+          attempt_count: (claimable.attempt_count ?? 0) + 1,
+        })
+        .eq('id', claimable.id)
+        .select('id')
+        .single()
+      if (updErr || !updated) {
+        return NextResponse.json(
+          { error: 'Failed to claim generation job: ' + (updErr?.message || 'unknown') },
+          { status: 500 },
+        )
+      }
+      job = updated
+    } else {
+      const { data: created, error: jobErr } = await supabaseAdmin
+        .from('document_generation_jobs')
+        .insert({
+          order_id,
+          submission_id: submission.id,
+          org_id: order.client_org_id,
+          status: 'running',
+          started_at: new Date().toISOString(),
+          attempt_count: 1,
+        })
+        .select('id')
+        .single()
+      if (jobErr || !created) {
+        return NextResponse.json(
+          { error: 'Failed to create generation job: ' + (jobErr?.message || 'unknown') },
+          { status: 500 },
+        )
+      }
+      job = created
     }
 
     // Update order delivery_status
@@ -415,9 +440,18 @@ You MUST explicitly weave this context into the executive summaries and relevant
     let docsGenerated = 0
     const failures: Array<{ document_type: DocumentType; error: string }> = []
     const generatedContent: Partial<Record<DocumentType, SpecificDocumentContent>> = {}
+    // Seed with already-generated documents (resume case) so the QA step below
+    // sees the full pack, not just the docs made in this invocation.
+    existingByType.forEach((content, seededType) => {
+      generatedContent[seededType] = content
+    })
 
     for (const docType of DOCUMENT_TYPE_ORDER) {
       try {
+        // Skip documents a prior (partial) run already produced — keep, don't redo.
+        if (existingByType.has(docType)) {
+          continue
+        }
         let contentJson: SpecificDocumentContent
         let contentReused = false
         let promptTokens = 0
@@ -446,6 +480,18 @@ You MUST explicitly weave this context into the executive summaries and relevant
           })
           contentReused = true
           reusedCount++
+        } else if (docType === 'procurement_response_memo' && isPremiumTier) {
+          // ST2-5: the premium 40-question memo is generated as a base call +
+          // grouped Q&A sub-calls and merged, so no single call nears the output
+          // cap (it truncated every time as one call). Tokens are summed inside.
+          const memo = await generateProcurementMemo(intake, deeperTailoringInstruction)
+          contentJson = memo.content as unknown as SpecificDocumentContent
+          // Re-apply real PII into the placeholder slots the model received.
+          contentJson = deepReplacePlaceholders(contentJson, pseudonymReplacements)
+          promptTokens = memo.promptTokens
+          completionTokens = memo.completionTokens
+          totalTokens += promptTokens + completionTokens
+          totalCost += calcCostUsd(promptTokens, completionTokens)
         } else {
           const userPrompt = PROMPT_BUILDERS[docType](intake) + deeperTailoringInstruction
           const maxTokens = MAX_OUTPUT_TOKENS_BY_DOC[docType] ?? DEFAULT_MAX_OUTPUT_TOKENS
@@ -567,7 +613,7 @@ You MUST explicitly weave this context into the executive summaries and relevant
     // advanced the order to qa_review — which is exactly how the dead-model
     // outage stayed invisible for a month. Mark the job failed, leave the
     // order out of the delivery flow, and surface the reasons.
-    if (docsGenerated === 0) {
+    if (existingByType.size + docsGenerated === 0) {
       const summary = failures.map((f) => `${f.document_type}: ${f.error}`).join('; ').slice(0, 1000)
       await supabaseAdmin
         .from('document_generation_jobs')
