@@ -78,11 +78,23 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
 
   const dataCats = arrAt(s6, 'data_categories')
   const specialHits = dataCats.filter((c) => SPECIAL_CATEGORY_CHIPS.has(c))
-  const hasChildrenData = dataCats.includes(CHILDREN_KEY)
-  if (specialHits.length > 0) {
+  // Children's data may be declared two ways: the s6 data_categories chip OR the
+  // dedicated s4 ai_children_data question. BOTH must feed special-category
+  // scoring (decision 2026-06-17, ST2-3) — otherwise a firm that answers "Yes,
+  // children's data" in s4 but does not also chip it in s6 escapes the Article 9
+  // high flag and the critical escalation. This matters most for edtech.
+  const childrenViaS4 = strAt(s4, 'ai_children_data') === 'Yes'
+  const hasChildrenData = dataCats.includes(CHILDREN_KEY) || childrenViaS4
+  // Special-category signals for the flag message — include children's data even
+  // when it was declared only via the s4 answer.
+  const specialSignals =
+    childrenViaS4 && !specialHits.includes(CHILDREN_KEY)
+      ? [...specialHits, CHILDREN_KEY]
+      : specialHits
+  if (specialSignals.length > 0) {
     flags.push({
       severity: 'high',
-      triggering_answer: `data_categories=${specialHits.join(', ')}`,
+      triggering_answer: `special_category=${specialSignals.join(', ')}`,
       explanation: 'Special-category personal data under UK GDPR Article 9 requires explicit lawful basis and stricter safeguards.',
       required_action: 'Add Article 9 lawful basis section to the Privacy Notice Addendum and DPIA.',
     })
@@ -142,7 +154,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
   const criticalTrigger =
     highFlags.length >= 2 &&
     annexHits.length > 0 &&
-    (specialHits.length > 0 || hasChildrenData)
+    (specialSignals.length > 0 || hasChildrenData)
 
   let riskLevel: RiskLevel
   if (criticalTrigger) {

@@ -6,17 +6,16 @@
 //   high flag   = ai_decision_making Yes/Partly | Annex III decision category | special-category data
 //   medium flag = customer-facing AI + no disclosure | (uk_eu|uk_eu_row) & EU>=25% + customer-facing
 //                 | non-UK/EEA vendor without DPA
-//   critical    = >=2 high flags AND an Annex III hit AND (special OR children's data in s6.data_categories)
+//   critical    = >=2 high flags AND an Annex III hit AND (special-category data OR
+//                 children's data via either the s6 chip or the s4 ai_children_data answer)
 //   level       = critical | high(>=1 high flag) | medium(>=2 medium flags) | low
 //   auto-gen    = low/medium only; high/critical are HELD for the admin "Generate Pack" button.
 //
 // NOTE on medium: a SINGLE medium flag still scores LOW — medium needs >=2.
-// NOTE on children's data: scoreRisk only treats children's data as a special
-//   category when "Children's data" is in s6.data_categories. The s4
-//   ai_children_data flag does NOT feed scoring. Brightpath is therefore encoded
-//   to land HIGH (children represented via ai_children_data + narrative, NOT via
-//   the s6 chip) per the brief; the honest s6 answer would tip it to CRITICAL.
-//   This modelling nuance is logged as a Smoke Test 2 finding.
+// NOTE on children's data (ST2-3, resolved 2026-06-17): BOTH the s6 "Children's
+//   data" chip AND the dedicated s4 ai_children_data='Yes' answer feed special-
+//   category scoring. Brightpath answers ai_children_data='Yes' (edtech for
+//   under-18s) and so now correctly lands CRITICAL.
 
 export type Tier = 'solo' | 'procurement_ready' | 'adviser'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
@@ -265,19 +264,19 @@ export const PERSONAS: Persona[] = [
     },
   },
 
-  // 6. BRIGHTPATH TUTORING — Solo £249 — target HIGH — HELD — children's-data path.
+  // 6. BRIGHTPATH TUTORING — Solo £249 — target CRITICAL — HELD — children's-data path.
   // Edtech for under-18s. AI tutor + AI that assesses learning progress: decision
   // 'Yes' (high#1) + Annex III 'Assessing students, candidates, or learners'
-  // (high#2). Children represented via ai_children_data (NOT s6 chip) → HIGH.
-  // (Adding "Children's data" to s6.data_categories would tip this to CRITICAL —
-  //  see header note; logged as a finding about how children's data is scored.)
+  // (high#2) + children's data via ai_children_data='Yes' (special-category high#3).
+  // With ST2-3 resolved (both children's-data signals count), this correctly lands
+  // CRITICAL — the honest outcome for an edtech firm handling under-18s' data.
   {
     key: 'brightpath',
     company: 'Brightpath Tutoring',
-    blurb: 'Edtech for under-18s (12 staff); AI tutor + progress assessment (Annex III education + decision). Children\'s data. HELD high.',
+    blurb: 'Edtech for under-18s (12 staff); AI tutor + progress assessment (Annex III education + decision). Children\'s data via s4. HELD critical.',
     tier: 'solo',
     email: 'olutags+brightpath@gmail.com',
-    expectedRisk: 'high',
+    expectedRisk: 'critical',
     expectAutoGen: false,
     path: 'high-risk-hold',
     logoKey: 'brightpath',
@@ -295,8 +294,8 @@ export const PERSONAS: Persona[] = [
       '4': { ai_decision_making: 'Yes', ai_decision_categories: ['Assessing students, candidates, or learners'], ai_customer_facing: 'Yes', ai_customer_channels: ['Mobile app'], ai_children_data: 'Yes' },
       '5': { current_ai_disclosure: 'No', ai_opt_out_mechanism: 'Not applicable' },
       '6': {
-        // Children represented via ai_children_data above; deliberately NOT chipping
-        // "Children's data" here so the case lands HIGH (per brief), not CRITICAL.
+        // Children's data is declared via ai_children_data='Yes' (s4 above), which
+        // now feeds special-category scoring (ST2-3) → this case lands CRITICAL.
         data_categories: ['Names and contact details'],
         vendors: [
           { vendor_name: 'OpenAI', hq_location: 'USA', dpa_signed: 'Yes', transfer_mechanism: 'Standard Contractual Clauses (SCCs)', training_reuse: 'No', certifications: ['SOC 2 Type II'] },
