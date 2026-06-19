@@ -32,6 +32,30 @@ export type DocumentType =
   | 'procurement_response_memo'
 export type QaStatus = 'pending' | 'passed' | 'flagged' | 'failed'
 export type DocDeliveryStatus = 'pending' | 'approved' | 'delivered' | 'failed'
+
+// ── Portal "Request More Info" remediation (ST2-4, migration 007) ──
+export type InfoRequestStatus = 'open' | 'submitted' | 'resolved' | 'cancelled'
+
+export interface InfoRequest {
+  id: string
+  order_id: string
+  submission_id: string | null
+  /** NULL = case-level (top-level banner); otherwise tied to one document card. */
+  document_type: DocumentType | null
+  prompt: string
+  options: string[]
+  answer_text: string | null
+  answer_selections: string[]
+  status: InfoRequestStatus
+  created_by: string | null
+  answered_at: string | null
+  answered_by: string | null
+  resolved_at: string | null
+  resolved_by: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
 export type QaRecommendation = 'approve' | 'request_more_info' | 'escalate' | 'specialist_route'
 export type ReviewerType = 'system' | 'founder' | 'specialist'
 export type ReviewDecision = 'approve' | 'request_more_info' | 'escalate' | 'reject'

@@ -273,3 +273,114 @@ export async function approvePackAction(input: {
     }
   }
 }
+
+// ─────────────────────────────────────────
+// 3. Submit an answer to an information request (ST2-4)
+// The structured response path the portal was missing: the customer
+// answers one outstanding `info_requests` item. Moves it open → submitted
+// and re-notifies the admin. Returns whether any items remain open so the
+// portal can show "a couple more to go" vs the final "we're reviewing" state.
+// ─────────────────────────────────────────
+const InfoAnswerSchema = z
+  .object({
+    orderId: UUID,
+    infoRequestId: UUID,
+    answerText: z.string().trim().max(4000, 'Answer is too long (max 4000 characters)').optional(),
+    answerSelections: z.array(z.string().trim().max(200)).max(50).optional(),
+  })
+  .refine(
+    (d) => (d.answerText?.length ?? 0) > 0 || (d.answerSelections?.length ?? 0) > 0,
+    { message: 'Please provide an answer before submitting.' },
+  )
+
+export async function submitInfoRequestAnswerAction(input: {
+  orderId: string
+  infoRequestId: string
+  answerText?: string
+  answerSelections?: string[]
+}): Promise<PortalActionResult & { remainingOpen?: number }> {
+  try {
+    const parsed = InfoAnswerSchema.safeParse(input)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    }
+
+    const auth = await requireCustomerOwner(parsed.data.orderId)
+    if (!auth.ok) return { success: false, error: auth.error }
+
+    // The request must belong to this customer's order and still be open.
+    const { data: info, error: infoError } = await supabaseAdmin
+      .from('info_requests')
+      .select('id, order_id, status')
+      .eq('id', parsed.data.infoRequestId)
+      .maybeSingle()
+    if (infoError) return { success: false, error: infoError.message }
+    if (!info || info.order_id !== auth.orderId) {
+      return { success: false, error: 'That request was not found for this pack.' }
+    }
+    if (info.status !== 'open') {
+      return { success: false, error: 'This question has already been answered.' }
+    }
+
+    const nowIso = new Date().toISOString()
+    // The .eq('status','open') guard makes a concurrent double-submit a no-op.
+    const { error: updateError } = await supabaseAdmin
+      .from('info_requests')
+      .update({
+        answer_text: parsed.data.answerText ?? null,
+        answer_selections: parsed.data.answerSelections ?? [],
+        status: 'submitted',
+        answered_at: nowIso,
+        answered_by: auth.userId,
+      })
+      .eq('id', info.id)
+      .eq('status', 'open')
+    if (updateError) {
+      return { success: false, error: `Could not save your answer: ${updateError.message}` }
+    }
+
+    await supabaseAdmin.from('audit_events').insert({
+      admin_user_id: null,
+      action_type: 'info_answered',
+      target_type: 'info_request',
+      target_id: info.id,
+      metadata: { customer_user_id: auth.userId, order_id: auth.orderId },
+    })
+
+    // How many items remain open? Drives the portal's "all done" confirmation.
+    const { count: remaining } = await supabaseAdmin
+      .from('info_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_id', auth.orderId)
+      .eq('status', 'open')
+    const remainingOpen = remaining ?? 0
+
+    await notifyAdmin(
+      'Customer answered an information request',
+      `<p>The customer answered an outstanding question on order <strong>${auth.orderId}</strong>.</p>
+       <p>${
+         remainingOpen > 0
+           ? `${remainingOpen} item(s) still outstanding.`
+           : 'All outstanding items are now answered — ready for review.'
+       }</p>`,
+    )
+
+    revalidatePath(`/portal/${auth.orderId}`)
+    revalidatePath(`/admin/cases/${auth.orderId}`)
+    revalidatePath('/admin')
+
+    return {
+      success: true,
+      remainingOpen,
+      message:
+        remainingOpen > 0
+          ? 'Thanks — saved. Just a couple more to go.'
+          : "Thanks — that's everything. Our compliance team is reviewing your answers and we'll be in touch.",
+    }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Unexpected error',
+    }
+  }
+}

@@ -1,9 +1,14 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import {
+  Activity,
+  ArrowRight,
+  Building2,
   Check,
+  CheckCheck,
   ClipboardCheck,
   Database,
   Download,
@@ -24,8 +29,8 @@ import {
   X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { DocumentType } from '@/types/database'
-import { approvePackAction, submitRevisionAction } from '../actions'
+import type { DocumentType, InfoRequestStatus } from '@/types/database'
+import { approvePackAction, submitInfoRequestAnswerAction, submitRevisionAction } from '../actions'
 import { ReadyPackLogo } from '@/components/ReadyPackLogo'
 import styles from './portal.module.css'
 
@@ -42,6 +47,15 @@ export interface PortalDocument {
   deliveryStatus: 'pending' | 'approved' | 'delivered' | 'failed'
 }
 
+export interface PortalInfoRequest {
+  id: string
+  /** NULL = case-level (top-level banner); otherwise tied to one document card. */
+  documentType: DocumentType | null
+  prompt: string
+  options: string[]
+  status: InfoRequestStatus
+}
+
 interface Props {
   orderId: string
   customerName: string
@@ -49,6 +63,7 @@ interface Props {
   packReference: string
   isApproved: boolean
   documents: PortalDocument[]
+  infoRequests: PortalInfoRequest[]
 }
 
 // Lucide icon registry — keeps the bundle tree-shakable while supporting
@@ -83,6 +98,7 @@ export function CustomerPortalClient({
   packReference,
   isApproved: initialIsApproved,
   documents,
+  infoRequests,
 }: Props) {
   const router = useRouter()
   const [isApproved, setIsApproved] = useState(initialIsApproved)
@@ -96,6 +112,38 @@ export function CustomerPortalClient({
   const [errorBanner, setErrorBanner] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const revTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // ── Remediation flow (ST2-4 info_requests) ───────────────────────
+  const openRequests = infoRequests.filter((r) => r.status === 'open')
+  const submittedRequests = infoRequests.filter((r) => r.status === 'submitted')
+  // Items answered in this session (props won't refresh until router.refresh()).
+  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set())
+  const remainingRequests = openRequests.filter((r) => !answeredIds.has(r.id))
+
+  // Portal mode — these are mutually exclusive. Approve/revise is only offered in
+  // 'pending'; while any info_request is open or awaiting admin review we keep the
+  // customer in the remediation / "we're reviewing" flow instead.
+  const portalMode: 'approved' | 'action' | 'submitted' | 'pending' = isApproved
+    ? 'approved'
+    : remainingRequests.length > 0
+      ? 'action'
+      : submittedRequests.length > 0 || answeredIds.size > 0
+        ? 'submitted'
+        : 'pending'
+
+  const [flowOpen, setFlowOpen] = useState(false)
+  const [currentReqId, setCurrentReqId] = useState<string | null>(null)
+  const [flowSelections, setFlowSelections] = useState<string[]>([])
+  const [flowText, setFlowText] = useState('')
+  const [flowError, setFlowError] = useState<string | null>(null)
+  const [doneOpen, setDoneOpen] = useState(false)
+
+  const currentRequest = openRequests.find((r) => r.id === currentReqId) ?? null
+  const flaggedDocTypes = new Map<DocumentType, string>()
+  for (const r of remainingRequests) {
+    if (r.documentType) flaggedDocTypes.set(r.documentType, r.id)
+  }
+  const topLevelRequest = remainingRequests.find((r) => r.documentType === null) ?? null
 
   // Reset selection when the pack flips into approved state.
   useEffect(() => {
@@ -216,6 +264,79 @@ export function CustomerPortalClient({
     })
   }
 
+  // ── Remediation flow handlers ────────────────────────────────────
+  const startFlow = (startId?: string | null) => {
+    const start =
+      startId && !answeredIds.has(startId)
+        ? startId
+        : (remainingRequests[0]?.id ?? null)
+    if (!start) return
+    setCurrentReqId(start)
+    setFlowSelections([])
+    setFlowText('')
+    setFlowError(null)
+    setFlowOpen(true)
+  }
+
+  const closeFlow = () => {
+    setFlowOpen(false)
+    setFlowError(null)
+  }
+
+  const toggleFlowOption = (option: string) => {
+    setFlowSelections((prev) =>
+      prev.includes(option) ? prev.filter((o) => o !== option) : [...prev, option],
+    )
+  }
+
+  const advanceTo = (nextId: string) => {
+    setCurrentReqId(nextId)
+    setFlowSelections([])
+    setFlowText('')
+    setFlowError(null)
+  }
+
+  const submitFlowItem = () => {
+    if (!currentRequest) return
+    setFlowError(null)
+    const text = flowText.trim()
+    if (flowSelections.length === 0 && text.length === 0) {
+      setFlowError('Please choose an option or add a short answer before submitting.')
+      return
+    }
+
+    startTransition(async () => {
+      const result = await submitInfoRequestAnswerAction({
+        orderId,
+        infoRequestId: currentRequest.id,
+        answerText: text.length > 0 ? text : undefined,
+        answerSelections: flowSelections.length > 0 ? flowSelections : undefined,
+      })
+      if (!result.success) {
+        setFlowError(result.error)
+        return
+      }
+      const answeredNow = new Set(answeredIds).add(currentRequest.id)
+      setAnsweredIds(answeredNow)
+
+      const next = openRequests.find((r) => !answeredNow.has(r.id))
+      const remaining = result.remainingOpen ?? (next ? 1 : 0)
+      if (remaining > 0 && next) {
+        advanceTo(next.id)
+      } else {
+        // All items answered — show the distinct "we're reviewing" confirmation
+        // (never drop back to approve/revise), then refresh server state.
+        setFlowOpen(false)
+        setDoneOpen(true)
+        router.refresh()
+      }
+    })
+  }
+
+  const totalFlowItems = openRequests.length
+  const answeredCount = answeredIds.size
+  const remainingCount = remainingRequests.length
+
   const shellClass = `${styles.shell} ${isApproved ? styles.approved : ''}`
 
   return (
@@ -249,9 +370,17 @@ export function CustomerPortalClient({
           {/* Hero */}
           <section className={styles.hero}>
             <div className={styles.heroBadgeRow}>
-              {isApproved ? (
+              {portalMode === 'approved' ? (
                 <span className={`${styles.statusPill} ${styles.pillApproved}`}>
                   <span className={styles.dot} /> Pack finalised
+                </span>
+              ) : portalMode === 'action' ? (
+                <span className={`${styles.statusPill} ${styles.pillAction}`}>
+                  <span className={styles.dot} /> Action needed
+                </span>
+              ) : portalMode === 'submitted' ? (
+                <span className={`${styles.statusPill} ${styles.pillReview}`}>
+                  <span className={styles.dot} /> In review
                 </span>
               ) : (
                 <span className={`${styles.statusPill} ${styles.pillPending}`}>
@@ -260,21 +389,29 @@ export function CustomerPortalClient({
               )}
             </div>
 
-            {isApproved ? (
+            {portalMode === 'approved' ? (
               <h1 className={styles.heroTitle}>
                 <span className={styles.checkIco}>
                   <Check width={18} height={18} aria-hidden />
                 </span>
                 Your compliance pack is complete
               </h1>
+            ) : portalMode === 'action' ? (
+              <h1 className={styles.heroTitle}>We need a little more information</h1>
+            ) : portalMode === 'submitted' ? (
+              <h1 className={styles.heroTitle}>Thanks — your answers are in</h1>
             ) : (
               <h1 className={styles.heroTitle}>Your compliance pack is ready for review</h1>
             )}
 
             <p className={styles.heroSub}>
-              {isApproved
+              {portalMode === 'approved'
                 ? 'Your final, un-watermarked documents are now unlocked and ready to deploy in your business. Download individually or as a single ZIP archive.'
-                : 'Please review your draft documents below. Once you approve the pack, the watermarks will be removed and your final PDFs will be unlocked for download.'}
+                : portalMode === 'action'
+                  ? 'Our compliance team has a few quick questions about your answers. The cards below show what needs your input — answer them and we’ll pick your pack straight back up.'
+                  : portalMode === 'submitted'
+                    ? 'Our compliance team is reviewing your responses and will update your pack. We’ll email you when it’s ready — there’s nothing else you need to do right now.'
+                    : 'Please review your draft documents below. Once you approve the pack, the watermarks will be removed and your final PDFs will be unlocked for download.'}
             </p>
           </section>
 
@@ -301,28 +438,67 @@ export function CustomerPortalClient({
             </p>
           ) : null}
 
+          {/* Top-level (case-wide) information request — not tied to one card */}
+          {portalMode === 'action' && topLevelRequest ? (
+            <button
+              type="button"
+              className={styles.actionBanner}
+              onClick={() => startFlow(topLevelRequest.id)}
+            >
+              <span className={styles.banIco}>
+                <Building2 width={22} height={22} strokeWidth={1.5} aria-hidden />
+              </span>
+              <span className={styles.banBody}>
+                <span className={styles.banTitle}>About your business</span>
+                <span className={styles.banSub}>{topLevelRequest.prompt}</span>
+              </span>
+              <span className={styles.banCta}>
+                <ArrowRight width={18} height={18} strokeWidth={1.5} aria-hidden />
+              </span>
+            </button>
+          ) : null}
+
           {/* Doc grid */}
           <div className={styles.docGrid}>
             {documents.map((doc) => {
               const isSelected = selected.has(doc.documentType)
+              const isRemediation = portalMode === 'action' || portalMode === 'submitted'
+              const flaggedReqId =
+                portalMode === 'action' ? flaggedDocTypes.get(doc.documentType) : undefined
+              const isFlagged = Boolean(flaggedReqId)
+              const selectable = !isApproved && !isRemediation
+              const cardClass = [
+                styles.docCard,
+                isSelected ? styles.docCardSelected : '',
+                isFlagged ? styles.docCardFlagged : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
               return (
                 <div
                   key={doc.documentType}
-                  className={`${styles.docCard} ${isSelected ? styles.docCardSelected : ''}`}
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).closest('button, a')) return
-                    toggleSelect(doc.documentType)
-                  }}
-                  role={isApproved ? 'group' : 'button'}
-                  aria-pressed={isApproved ? undefined : isSelected}
-                  tabIndex={isApproved ? -1 : 0}
-                  onKeyDown={(e) => {
-                    if (isApproved) return
-                    if (e.key === ' ' || e.key === 'Enter') {
-                      e.preventDefault()
-                      toggleSelect(doc.documentType)
-                    }
-                  }}
+                  className={cardClass}
+                  onClick={
+                    selectable
+                      ? (e) => {
+                          if ((e.target as HTMLElement).closest('button, a')) return
+                          toggleSelect(doc.documentType)
+                        }
+                      : undefined
+                  }
+                  role={selectable ? 'button' : 'group'}
+                  aria-pressed={selectable ? isSelected : undefined}
+                  tabIndex={selectable ? 0 : -1}
+                  onKeyDown={
+                    selectable
+                      ? (e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            e.preventDefault()
+                            toggleSelect(doc.documentType)
+                          }
+                        }
+                      : undefined
+                  }
                 >
                   <div className={styles.docWm} aria-hidden>
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -332,31 +508,40 @@ export function CustomerPortalClient({
 
                   <div className={styles.docTop}>
                     <div className={styles.docTopLeft}>
-                      <button
-                        className={styles.docCheck}
-                        type="button"
-                        aria-label={`Select ${doc.title}`}
-                        aria-pressed={isSelected}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleSelect(doc.documentType)
-                        }}
-                        tabIndex={-1}
-                      >
-                        <Check width={13} height={13} strokeWidth={3} aria-hidden />
-                      </button>
+                      {selectable ? (
+                        <button
+                          className={styles.docCheck}
+                          type="button"
+                          aria-label={`Select ${doc.title}`}
+                          aria-pressed={isSelected}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSelect(doc.documentType)
+                          }}
+                          tabIndex={-1}
+                        >
+                          <Check width={13} height={13} strokeWidth={3} aria-hidden />
+                        </button>
+                      ) : null}
                       <span className={styles.docIcon}>
                         <DocIcon name={doc.icon} />
                       </span>
                     </div>
-                    <span
-                      className={`${styles.cardBadge} ${
-                        isApproved ? styles.badgeFinal : styles.badgeDraft
-                      }`}
-                    >
-                      <span className={styles.bdot} />
-                      {isApproved ? 'Final' : 'Draft'}
-                    </span>
+                    {isFlagged ? (
+                      <span className={`${styles.cardBadge} ${styles.badgeAction}`}>
+                        <span className={styles.bdot} />
+                        Action needed
+                      </span>
+                    ) : (
+                      <span
+                        className={`${styles.cardBadge} ${
+                          isApproved ? styles.badgeFinal : styles.badgeDraft
+                        }`}
+                      >
+                        <span className={styles.bdot} />
+                        {isApproved ? 'Final' : 'Draft'}
+                      </span>
+                    )}
                   </div>
 
                   <div className={styles.docRef}>{doc.ref}</div>
@@ -384,6 +569,25 @@ export function CustomerPortalClient({
                         <Download width={15} height={15} strokeWidth={1.5} aria-hidden /> Download
                         PDF
                       </a>
+                    ) : isRemediation ? (
+                      isFlagged ? (
+                        <button
+                          type="button"
+                          className={`${styles.btn} ${styles.btnAmber} ${styles.btnSm} ${styles.actionAnswer}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            startFlow(flaggedReqId)
+                          }}
+                        >
+                          <MessageSquareText width={15} height={15} strokeWidth={1.5} aria-hidden />
+                          Answer this question
+                        </button>
+                      ) : (
+                        <span className={styles.actionNoAction}>
+                          <Check width={14} height={14} strokeWidth={2} aria-hidden />
+                          {portalMode === 'submitted' ? 'Answer received' : 'No action needed'}
+                        </span>
+                      )
                     ) : (
                       <div className={styles.docActionRow}>
                         <a
@@ -424,8 +628,72 @@ export function CustomerPortalClient({
         </div>
       </main>
 
+      {/* ── Sticky action bar — remediation: items need input ────── */}
+      {portalMode === 'action' ? (
+        <div className={styles.actionBar}>
+          <div className={styles.container}>
+            <div className={styles.actionBarInner}>
+              <div className={styles.abInfo}>
+                <span className={`${styles.abShield} ${styles.abShieldAction}`} aria-hidden>
+                  {remainingCount}
+                </span>
+                <div className={styles.abText}>
+                  <span className={styles.abTitle}>
+                    {remainingCount} {remainingCount === 1 ? 'item needs' : 'items need'} your input
+                  </span>
+                  <span className={styles.abSub}>
+                    Answer a few quick questions from our compliance team so we can finish your pack.
+                    You don’t need to approve anything yet.
+                  </span>
+                </div>
+              </div>
+              <div className={styles.abActions}>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnAmber} ${styles.btnLg}`}
+                  onClick={() => startFlow()}
+                >
+                  Provide the information
+                  <ArrowRight width={18} height={18} strokeWidth={1.5} aria-hidden />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── Sticky action bar — submitted: awaiting admin review ──── */}
+      {portalMode === 'submitted' ? (
+        <div className={styles.actionBar}>
+          <div className={styles.container}>
+            <div className={styles.actionBarInner}>
+              <div className={styles.abInfo}>
+                <span className={`${styles.abShield} ${styles.abShieldOk}`} aria-hidden>
+                  <Check width={22} height={22} strokeWidth={1.5} />
+                </span>
+                <div className={styles.abText}>
+                  <span className={styles.abTitle}>Your answers have been received</span>
+                  <span className={styles.abSub}>
+                    Our compliance team is reviewing your responses and will update your pack. We’ll
+                    email you when it’s ready.
+                  </span>
+                </div>
+              </div>
+              <div className={styles.abActions}>
+                <Link
+                  className={`${styles.btn} ${styles.btnSurface} ${styles.btnMd}`}
+                  href={`/status/${orderId}`}
+                >
+                  <Activity width={16} height={16} strokeWidth={1.5} aria-hidden /> View pack progress
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* ── Sticky action bar (pending state only) ────────── */}
-      {!isApproved ? (
+      {portalMode === 'pending' ? (
         <div className={styles.actionBar}>
           <div className={styles.container}>
             <div className={styles.actionBarInner}>
@@ -629,6 +897,180 @@ export function CustomerPortalClient({
                 <span className={styles.sLabel}>{label}</span>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Information-request overlay (remediation flow) ─────── */}
+      <div
+        className={`${styles.reqOverlay} ${flowOpen ? styles.reqOverlayShow : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Information request"
+        aria-hidden={!flowOpen}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) closeFlow()
+        }}
+      >
+        {currentRequest ? (
+          <div className={styles.reqCard}>
+            <div className={styles.reqHead}>
+              <span className={styles.reqEyebrow}>Information request</span>
+              <span className={styles.reqProgress}>
+                Item <b>{Math.min(answeredCount + 1, totalFlowItems)}</b> of {totalFlowItems}
+              </span>
+              <button
+                type="button"
+                className={styles.reqClose}
+                aria-label="Close"
+                onClick={closeFlow}
+              >
+                <X width={18} height={18} strokeWidth={1.5} aria-hidden />
+              </button>
+            </div>
+
+            <div className={styles.reqDots}>
+              {openRequests.map((r, i) => {
+                const done = answeredIds.has(r.id)
+                const active = r.id === currentReqId
+                return (
+                  <span
+                    key={r.id}
+                    className={`${styles.reqDot} ${done ? styles.reqDotDone : ''} ${
+                      active && !done ? styles.reqDotActive : ''
+                    }`}
+                    aria-hidden
+                  >
+                    <span className={styles.srOnly}>{`Item ${i + 1}`}</span>
+                  </span>
+                )
+              })}
+            </div>
+
+            <div className={styles.reqBody}>
+              <span className={styles.reqRelates}>
+                {currentRequest.documentType ? (
+                  <>
+                    <FileText width={14} height={14} strokeWidth={1.5} aria-hidden /> Relates to ·{' '}
+                    {documents.find((d) => d.documentType === currentRequest.documentType)?.title ??
+                      'your pack'}
+                  </>
+                ) : (
+                  <>
+                    <Building2 width={14} height={14} strokeWidth={1.5} aria-hidden /> About your
+                    business
+                  </>
+                )}
+              </span>
+              <p className={styles.reqPrompt}>{currentRequest.prompt}</p>
+
+              {currentRequest.options.length > 0 ? (
+                <div className={styles.reqOptions}>
+                  {currentRequest.options.map((option) => {
+                    const checked = flowSelections.includes(option)
+                    return (
+                      <button
+                        type="button"
+                        key={option}
+                        className={`${styles.reqOpt} ${checked ? styles.reqOptChecked : ''}`}
+                        onClick={() => toggleFlowOption(option)}
+                        aria-pressed={checked}
+                      >
+                        <span className={styles.reqMark}>
+                          <Check width={13} height={13} strokeWidth={3.2} aria-hidden />
+                        </span>
+                        <span className={styles.reqOptLabel}>{option}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
+
+              <label className={styles.reqFtLabel} htmlFor="reqText">
+                {currentRequest.options.length > 0
+                  ? 'Add anything that helps us get this right'
+                  : 'Your answer'}
+              </label>
+              <textarea
+                id="reqText"
+                className={styles.reqTextarea}
+                placeholder={
+                  currentRequest.options.length > 0
+                    ? 'Optional — a sentence or two of context is plenty.'
+                    : 'Type your answer here.'
+                }
+                value={flowText}
+                onChange={(e) => setFlowText(e.target.value)}
+                maxLength={4000}
+              />
+
+              {flowError ? (
+                <p className={styles.revError} role="alert">
+                  {flowError}
+                </p>
+              ) : null}
+            </div>
+
+            <div className={styles.reqFoot}>
+              <span className={styles.reqFootHint}>
+                Your answer goes straight to your reviewer. Your pack stays in review until every
+                item is resolved.
+              </span>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnPrimary} ${styles.btnMd}`}
+                onClick={submitFlowItem}
+                disabled={pending}
+              >
+                {pending ? (
+                  <>
+                    <Loader
+                      width={16}
+                      height={16}
+                      style={{ animation: 'spin 0.9s linear infinite' }}
+                      aria-hidden
+                    />{' '}
+                    Saving…
+                  </>
+                ) : remainingCount <= 1 ? (
+                  'Submit & finish'
+                ) : (
+                  'Submit answer'
+                )}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── Done / "we're reviewing your answers" confirmation ──── */}
+      <div
+        className={`${styles.reqOverlay} ${doneOpen ? styles.reqOverlayShow : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Answers submitted"
+        aria-hidden={!doneOpen}
+      >
+        <div className={styles.doneCard}>
+          <span className={styles.doneIco}>
+            <CheckCheck width={28} height={28} strokeWidth={2} aria-hidden />
+          </span>
+          <h2 className={styles.doneTitle}>Thank you — your answers are in.</h2>
+          <p className={styles.doneSub}>
+            Our compliance team is reviewing your responses. We’ll update your pack and email you
+            when it’s ready. There’s nothing else you need to do right now.
+          </p>
+          <div className={styles.doneActions}>
+            <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnMd}`} href={`/status/${orderId}`}>
+              <Activity width={17} height={17} strokeWidth={1.5} aria-hidden /> View pack progress
+            </Link>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnGhost} ${styles.btnMd}`}
+              onClick={() => setDoneOpen(false)}
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

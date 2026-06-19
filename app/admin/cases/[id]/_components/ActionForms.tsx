@@ -9,11 +9,27 @@ import {
   markFlagResolvedAction,
   overrideAndNoteAction,
   requestMoreInfoAction,
+  resolveInfoRequestAction,
   triggerGenerationAction,
   type ActionResult,
 } from '../actions'
 import detail from '../case-detail.module.css'
 import flag from './flag-actions.module.css'
+
+// Document cards an information request can be tied to (NULL = case-level).
+// Mirrors the canonical pack order; lets the admin target a specific card.
+const DOC_TYPE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: '', label: 'Whole case (no specific document)' },
+  { value: 'ai_use_statement', label: 'AI Use Statement' },
+  { value: 'privacy_notice_addendum', label: 'Privacy Notice Addendum' },
+  { value: 'ai_risk_register', label: 'AI Risk Register' },
+  { value: 'dpia_lite', label: 'DPIA-Lite Assessment' },
+  { value: 'internal_ai_use_policy', label: 'Internal AI Use Policy' },
+  { value: 'customer_disclosure_snippets', label: 'Customer Disclosure Snippets' },
+  { value: 'vendor_ai_register', label: 'Vendor AI Register' },
+  { value: 'complaints_procedure_pack', label: 'Complaints Procedure Pack' },
+  { value: 'procurement_response_memo', label: 'Procurement Response Memo' },
+]
 
 type BtnVariant = 'primary' | 'secondary' | 'escalate'
 
@@ -136,6 +152,16 @@ export function RequestMoreInfoForm({ caseId }: { caseId: string }) {
       </summary>
       <form action={formAction} className={flag.disclosureForm}>
         <input type="hidden" name="caseId" value={caseId} />
+        <label htmlFor={`rmi-doc-${caseId}`} className={flag.fieldLabel}>
+          Which document does this relate to?
+        </label>
+        <select id={`rmi-doc-${caseId}`} name="documentType" className={flag.textarea} defaultValue="">
+          {DOC_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
         <label htmlFor={`rmi-msg-${caseId}`} className={flag.fieldLabel}>
           What do you need from the customer?
         </label>
@@ -146,7 +172,7 @@ export function RequestMoreInfoForm({ caseId }: { caseId: string }) {
           minLength={10}
           maxLength={2000}
           rows={4}
-          placeholder="Describe the missing information clearly."
+          placeholder="Ask one clear, plain-English question. The customer sees this on the card you choose above."
           className={flag.textarea}
         />
         <div className={flag.disclosureActions}>
@@ -277,6 +303,29 @@ export function OverrideAndNoteForm({
         <FieldError result={result} />
       </form>
     </details>
+  )
+}
+
+// ─────────────────────────────────────────
+// Resolve Information Request (ST2-4) — Info Requests tab.
+// Marks an outstanding info_requests row resolved once the admin has acted on
+// the customer's answer. Clears it from the portal + progress screen.
+// ─────────────────────────────────────────
+export function ResolveInfoRequestButton({
+  caseId,
+  infoRequestId,
+}: {
+  caseId: string
+  infoRequestId: string
+}) {
+  const [result, formAction] = useFormState(resolveInfoRequestAction, null)
+  return (
+    <form action={formAction} className={flag.sbtnStack}>
+      <input type="hidden" name="caseId" value={caseId} />
+      <input type="hidden" name="infoRequestId" value={infoRequestId} />
+      <FlagSubmit variant="green-outline">Mark Resolved</FlagSubmit>
+      <FieldError result={result} />
+    </form>
   )
 }
 

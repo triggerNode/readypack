@@ -10,6 +10,7 @@ import { DocumentsTab } from './_components/DocumentsTab'
 import { IntakeAnswersTab } from './_components/IntakeAnswersTab'
 import { OverviewTab } from './_components/OverviewTab'
 import { RedFlagsTab, type FlagRow } from './_components/RedFlagsTab'
+import { InfoRequestsTab, type InfoRequestRow } from './_components/InfoRequestsTab'
 import * as Tabs from './_components/Tabs'
 import styles from './case-detail.module.css'
 
@@ -71,7 +72,8 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   // ── Related rows (parallel) ───────────────────────────────
   const submissionId = caseRow.submission_id ?? null
 
-  const [flagsRes, docsRes, aiToolsRes, vendorsRes, qaReportsRes, genEventsRes] = await Promise.all([
+  const [flagsRes, docsRes, aiToolsRes, vendorsRes, qaReportsRes, genEventsRes, infoReqRes] =
+    await Promise.all([
     submissionId
       ? supabaseAdmin
           .from('risk_flags')
@@ -114,6 +116,13 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
       .eq('order_id', id)
       .eq('status', 'failed')
       .order('created_at', { ascending: false }),
+    // Information requests for this case (id === order id). Drives the Info
+    // Requests tab + open badge, and the Resolve action.
+    supabaseAdmin
+      .from('info_requests')
+      .select('id, document_type, prompt, options, answer_text, answer_selections, status, created_at, answered_at')
+      .eq('order_id', id)
+      .order('created_at', { ascending: false }),
   ])
 
   const flags = (flagsRes.data ?? []) as FlagRow[]
@@ -153,6 +162,15 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   const aiTools = (aiToolsRes.data ?? []) as ReadonlyArray<{ id: string; tool_name: string; vendor: string | null }>
   const vendors = (vendorsRes.data ?? []) as ReadonlyArray<{ id: string; vendor_name: string }>
   const qaReport = qaReportsRes.data?.[0] ?? null
+
+  const infoRequests = ((infoReqRes.data ?? []) as InfoRequestRow[]).map((r) => ({
+    ...r,
+    options: Array.isArray(r.options) ? r.options : [],
+    answer_selections: Array.isArray(r.answer_selections) ? r.answer_selections : [],
+  }))
+  const openInfoRequestCount = infoRequests.filter(
+    (r) => r.status === 'open' || r.status === 'submitted',
+  ).length
 
   const openFlags = flags
     .filter(f => f.status === 'open')
@@ -214,6 +232,16 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
               }
             >
               Red Flags
+            </Tabs.Trigger>
+            <Tabs.Trigger
+              value="info"
+              badge={
+                openInfoRequestCount > 0 ? (
+                  <span className={styles.tabFlagdot}>{openInfoRequestCount}</span>
+                ) : null
+              }
+            >
+              Info Requests
             </Tabs.Trigger>
             <Tabs.Trigger value="delivery">Delivery</Tabs.Trigger>
             <Tabs.Trigger value="payments">Payments</Tabs.Trigger>
@@ -283,6 +311,10 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
 
           <Tabs.Panel value="flags">
             <RedFlagsTab caseId={caseRow.id} flags={flags} />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="info">
+            <InfoRequestsTab caseId={caseRow.id} requests={infoRequests} />
           </Tabs.Panel>
 
           <Tabs.Panel value="delivery">

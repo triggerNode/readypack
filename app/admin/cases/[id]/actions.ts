@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
 import { buildRequestInfoEmail } from '@/lib/email'
+import { enqueueGeneration } from '@/lib/documents/generation-queue'
 
 const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
 
@@ -53,7 +54,8 @@ async function writeAudit(input: {
     | 'mark_flag_resolved'
     | 'override_decision'
     | 'approve_delivery'
-  targetType: 'order' | 'risk_flag' | 'submission'
+    | 'info_resolved'
+  targetType: 'order' | 'risk_flag' | 'submission' | 'info_request'
   targetId: string
   metadata?: Record<string, unknown>
 }): Promise<void> {
@@ -84,9 +86,23 @@ function refreshCaseUi(caseId: string): void {
 // the comms row marks intent and gives the email worker something to
 // pick up later.
 // ─────────────────────────────────────────
+const DOCUMENT_TYPE_VALUES = [
+  'ai_use_statement',
+  'privacy_notice_addendum',
+  'ai_risk_register',
+  'dpia_lite',
+  'internal_ai_use_policy',
+  'customer_disclosure_snippets',
+  'vendor_ai_register',
+  'complaints_procedure_pack',
+  'procurement_response_memo',
+] as const
+
 const RequestMoreInfoSchema = z.object({
   caseId: UUID,
   message: z.string().trim().min(10, 'Message must be at least 10 characters').max(2000, 'Message too long'),
+  // Optional: tie the request to a specific document card. Omitted = case-level.
+  documentType: z.enum(DOCUMENT_TYPE_VALUES).optional(),
 })
 
 export async function requestMoreInfoAction(
@@ -98,6 +114,7 @@ export async function requestMoreInfoAction(
     const parsed = RequestMoreInfoSchema.safeParse({
       caseId: formData.get('caseId'),
       message: formData.get('message'),
+      documentType: (formData.get('documentType') as string | null) ?? undefined,
     })
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
@@ -108,6 +125,24 @@ export async function requestMoreInfoAction(
 
     if (!c.customer_email) {
       return { success: false, error: 'Customer has no email on file — cannot send the request.' }
+    }
+
+    // Persist the structured request FIRST — this row is the portal's source of
+    // truth for the outstanding item (the email below is only the notification).
+    const { data: infoReq, error: infoErr } = await supabaseAdmin
+      .from('info_requests')
+      .insert({
+        order_id: c.id,
+        submission_id: c.submission_id,
+        document_type: parsed.data.documentType ?? null,
+        prompt: parsed.data.message,
+        created_by: admin.id,
+        status: 'open',
+      })
+      .select('id')
+      .single()
+    if (infoErr || !infoReq) {
+      return { success: false, error: `Could not save the request: ${infoErr?.message ?? 'unknown error'}` }
     }
 
     const { error: commsError } = await supabaseAdmin.from('customer_communications').insert({
@@ -156,7 +191,12 @@ export async function requestMoreInfoAction(
       actionType: 'request_more_info',
       targetType: 'order',
       targetId: c.id,
-      metadata: { message: parsed.data.message, resend_id: sendResult.data?.id ?? null },
+      metadata: {
+        message: parsed.data.message,
+        resend_id: sendResult.data?.id ?? null,
+        info_request_id: infoReq.id,
+        document_type: parsed.data.documentType ?? null,
+      },
     })
 
     refreshCaseUi(c.id)
@@ -437,29 +477,74 @@ export async function triggerGenerationAction(
     const c = await loadCase(parsed.data.caseId)
     if (!c) return { success: false, error: 'Case not found' }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    let res: Response
-    try {
-      res = await fetch(`${appUrl}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // c.id is the order id — the `cases` view is keyed by order id.
-        body: JSON.stringify({ order_id: c.id, _internal: true }),
-      })
-    } catch (fetchErr) {
-      return {
-        success: false,
-        error: `Could not reach generation endpoint: ${fetchErr instanceof Error ? fetchErr.message : 'unknown'}`,
-      }
+    // Durable enqueue: write a `queued` job + best-effort kick. The case detail /
+    // generation-queue pages show progress; the Vercel Cron drain is the backstop.
+    // (c.id is the order id — the `cases` view is keyed by order id.)
+    const result = await enqueueGeneration(c.id)
+    if (!result.enqueued && result.reason !== 'already complete') {
+      return { success: false, error: `Could not start generation: ${result.reason ?? 'unknown error'}` }
     }
 
-    if (!res.ok) {
-      const detail = (await res.json().catch(() => null)) as { error?: string } | null
-      return {
-        success: false,
-        error: `Generation request failed (${res.status}): ${detail?.error ?? 'unknown error'}`,
-      }
+    refreshCaseUi(c.id)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unexpected error' }
+  }
+}
+
+// ─────────────────────────────────────────
+// 8. Resolve Info Request (ST2-4)
+// Marks an outstanding info_requests row resolved once the admin has
+// processed the customer's answer (e.g. regenerated the affected docs).
+// Clears it from the portal's "action needed" surface + the progress screen.
+// ─────────────────────────────────────────
+const ResolveInfoRequestSchema = z.object({
+  caseId: UUID,
+  infoRequestId: UUID,
+})
+
+export async function resolveInfoRequestAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin()
+    const parsed = ResolveInfoRequestSchema.safeParse({
+      caseId: formData.get('caseId'),
+      infoRequestId: formData.get('infoRequestId'),
+    })
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
     }
+
+    const c = await loadCase(parsed.data.caseId)
+    if (!c) return { success: false, error: 'Case not found' }
+
+    // Per-record authorisation: the request must belong to this case's order.
+    const { data: info, error: infoError } = await supabaseAdmin
+      .from('info_requests')
+      .select('id, order_id')
+      .eq('id', parsed.data.infoRequestId)
+      .maybeSingle()
+    if (infoError) return { success: false, error: infoError.message }
+    if (!info) return { success: false, error: 'Info request not found' }
+    if (info.order_id !== c.id) {
+      return { success: false, error: 'Info request does not belong to this case' }
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('info_requests')
+      .update({ status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: admin.id })
+      .eq('id', info.id)
+    if (updateError) return { success: false, error: updateError.message }
+
+    await writeAudit({
+      adminUserId: admin.id,
+      actionType: 'info_resolved',
+      targetType: 'info_request',
+      targetId: info.id,
+      metadata: { case_id: c.id },
+    })
 
     refreshCaseUi(c.id)
     return { success: true }

@@ -8,8 +8,12 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { withSignedUrls } from '@/lib/documents/storage'
-import type { DocumentType } from '@/types/database'
-import { CustomerPortalClient, type PortalDocument } from './_components/CustomerPortalClient'
+import type { DocumentType, InfoRequest } from '@/types/database'
+import {
+  CustomerPortalClient,
+  type PortalDocument,
+  type PortalInfoRequest,
+} from './_components/CustomerPortalClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -153,12 +157,33 @@ export default async function CustomerPortalPage({ params }: { params: Params })
 
   const submissionId = submission?.id ?? null
 
-  const { data: documents } = submissionId
-    ? await supabaseAdmin
-        .from('generated_documents')
-        .select('id, document_type, file_url, page_count, version_number, delivery_status, render_metadata')
-        .eq('submission_id', submissionId)
-    : { data: [] as Array<Record<string, unknown>> }
+  const [{ data: documents }, { data: infoRequestRows }] = await Promise.all([
+    submissionId
+      ? supabaseAdmin
+          .from('generated_documents')
+          .select('id, document_type, file_url, page_count, version_number, delivery_status, render_metadata')
+          .eq('submission_id', submissionId)
+      : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    // Outstanding / submitted remediation items (Stripe-style requirements model).
+    // Open items drive the "action needed" flow; submitted items keep the pack
+    // out of approve/revise until the admin resolves them.
+    supabaseAdmin
+      .from('info_requests')
+      .select('id, document_type, prompt, options, status')
+      .eq('order_id', order.id)
+      .in('status', ['open', 'submitted'])
+      .order('created_at', { ascending: true }),
+  ])
+
+  const infoRequests: PortalInfoRequest[] = ((infoRequestRows ?? []) as Array<
+    Pick<InfoRequest, 'id' | 'document_type' | 'prompt' | 'options' | 'status'>
+  >).map((r) => ({
+    id: r.id,
+    documentType: r.document_type,
+    prompt: r.prompt,
+    options: Array.isArray(r.options) ? r.options : [],
+    status: r.status,
+  }))
 
   const documentRows = (documents ?? []) as Array<{
     id: string
@@ -217,6 +242,7 @@ export default async function CustomerPortalPage({ params }: { params: Params })
       packReference={packReference}
       isApproved={isApproved}
       documents={portalDocs}
+      infoRequests={infoRequests}
     />
   )
 }
