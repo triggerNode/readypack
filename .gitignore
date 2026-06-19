@@ -38,16 +38,19 @@ yarn-error.log*
 next-env.d.ts
 
 # Project management — local only, not part of the app codebase
-research/
-context/
-phases/
-tracking/
-reference/
-planning/
-prompts/
-design/
-assets/
-.claude/
+# Anchored to the repo root (leading slash) so they only match these top-level
+# dirs and never nested app dirs. An unanchored `prompts/` previously matched
+# lib/documents/prompts/ and kept the generation prompt templates out of git.
+/research/
+/context/
+/phases/
+/tracking/
+/reference/
+/planning/
+/prompts/
+/design/
+/assets/
+/.claude/
 
 
 # Playwright stored auth state (contains live session tokens)
