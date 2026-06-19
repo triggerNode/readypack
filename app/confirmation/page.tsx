@@ -28,6 +28,35 @@ function isTier(value: unknown): value is Tier {
   return value === 'solo' || value === 'procurement_ready' || value === 'adviser'
 }
 
+// Map a customer's email domain to its webmail inbox, so the "open inbox" CTA
+// actually takes them somewhere. Returns null for domains we can't resolve
+// (e.g. corporate mailboxes) — those keep the non-interactive prompt instead.
+const WEBMAIL_BY_DOMAIN: Record<string, string> = {
+  'gmail.com': 'https://mail.google.com/mail/u/0/',
+  'googlemail.com': 'https://mail.google.com/mail/u/0/',
+  'outlook.com': 'https://outlook.live.com/mail/',
+  'hotmail.com': 'https://outlook.live.com/mail/',
+  'hotmail.co.uk': 'https://outlook.live.com/mail/',
+  'live.com': 'https://outlook.live.com/mail/',
+  'live.co.uk': 'https://outlook.live.com/mail/',
+  'msn.com': 'https://outlook.live.com/mail/',
+  'yahoo.com': 'https://mail.yahoo.com/',
+  'yahoo.co.uk': 'https://mail.yahoo.com/',
+  'ymail.com': 'https://mail.yahoo.com/',
+  'icloud.com': 'https://www.icloud.com/mail/',
+  'me.com': 'https://www.icloud.com/mail/',
+  'mac.com': 'https://www.icloud.com/mail/',
+  'proton.me': 'https://mail.proton.me/u/0/',
+  'protonmail.com': 'https://mail.proton.me/u/0/',
+  'aol.com': 'https://mail.aol.com/',
+}
+
+function inboxUrlFor(email: string): string | null {
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) return null
+  return WEBMAIL_BY_DOMAIN[domain] ?? null
+}
+
 type ViewModel = {
   email: string
   tier: Tier
@@ -66,6 +95,7 @@ export default async function ConfirmationPage({ searchParams }: Props) {
   const { session_id: sessionId } = await searchParams
   const { email, tier, orderRef } = await fetchViewModel(sessionId)
   const display = TIER_DISPLAY[tier]
+  const inboxUrl = email ? inboxUrlFor(email) : null
 
   return (
     <>
@@ -176,12 +206,24 @@ export default async function ConfirmationPage({ searchParams }: Props) {
             </div>
           </div>
 
-          <div
-            className={styles.btn}
-            style={{ marginTop: '40px', cursor: 'default', opacity: 0.85 }}
-          >
-            Check your inbox to get started <Mail width={16} height={16} />
-          </div>
+          {inboxUrl ? (
+            <a
+              className={styles.btn}
+              href={inboxUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ marginTop: '40px', textDecoration: 'none' }}
+            >
+              Open my inbox <Mail width={16} height={16} />
+            </a>
+          ) : (
+            <div
+              className={styles.btn}
+              style={{ marginTop: '40px', cursor: 'default', opacity: 0.85 }}
+            >
+              Check your inbox to get started <Mail width={16} height={16} />
+            </div>
+          )}
           <p className={styles.ctaFoot}>
             We&apos;ve sent a secure link to{' '}
             <strong>{email || 'the email on file'}</strong>. Click it to open your questionnaire.
