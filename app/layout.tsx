@@ -17,7 +17,10 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'ReadyPack — AI Compliance Documentation',
+  title: {
+    default: 'ReadyPack — AI Compliance Documentation',
+    template: '%s · ReadyPack',
+  },
   description:
     'Nine compliance documents covering UK GDPR, EU AI Act, and DUAA. Delivered in 48 hours.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://readypack.co.uk'),

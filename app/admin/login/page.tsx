@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { sendAdminMagicLink } from './actions'
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('olutags@gmail.com')
@@ -19,19 +19,15 @@ export default function AdminLoginPage() {
     setStatus('sending')
     setErrorMessage('')
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/admin`,
-      },
-    })
+    // Browser-independent sign-in: the server generates a token_hash magic link
+    // and emails it. It works no matter which browser/app opens it.
+    const result = await sendAdminMagicLink(email)
 
-    if (error) {
-      setStatus('error')
-      setErrorMessage(error.message)
-    } else {
+    if (result.ok) {
       setStatus('sent')
+    } else {
+      setStatus('error')
+      setErrorMessage(result.error ?? 'Could not send the link. Please try again.')
     }
   }
 

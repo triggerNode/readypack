@@ -17,6 +17,8 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Your Documents' }
+
 type Params = Promise<{ id: string }>
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/

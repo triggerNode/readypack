@@ -135,6 +135,20 @@ export function QuestionnaireShell({
     [submissionId],
   )
 
+  // If the browser restores this page from its back/forward cache (bfcache) —
+  // e.g. the customer hits "back" from the progress screen — the cached client
+  // state is shown WITHOUT re-running the server component, which is how a
+  // already-submitted user could see a stale, blank questionnaire. Force a
+  // reload on bfcache restore so the server re-renders (and shows the proper
+  // "already submitted" screen when applicable).
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) window.location.reload()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
+
   // Warn before unloading the tab while there are unsaved (not-yet-continued) changes.
   useEffect(() => {
     if (!isDirty) return

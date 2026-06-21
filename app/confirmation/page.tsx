@@ -7,6 +7,8 @@ import styles from './confirmation.module.css'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Payment Confirmed' }
+
 type Tier = 'solo' | 'procurement_ready' | 'adviser'
 
 type Props = {

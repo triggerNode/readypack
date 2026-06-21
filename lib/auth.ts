@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 // The only email address permitted to access /admin
-const ADMIN_EMAIL = 'olutags@gmail.com'
+export const ADMIN_EMAIL = 'olutags@gmail.com'
 
 /**
  * Returns the current authenticated user, or null if not signed in.

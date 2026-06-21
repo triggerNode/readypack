@@ -17,6 +17,8 @@ import styles from './cases-list.module.css'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Admin · Cases' }
+
 function parseTab(raw: string | string[] | undefined): FilterTab {
   const v = Array.isArray(raw) ? raw[0] : raw
   if (v === 'needs_action' || v === 'flagged' || v === 'overdue') return v

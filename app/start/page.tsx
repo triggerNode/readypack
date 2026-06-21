@@ -1,9 +1,12 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { QuestionnaireShell } from './_components/QuestionnaireShell'
 import type { RawAnswers, SectionCompletion } from './_components/types'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata = { title: 'Your Questionnaire' }
 
 export default async function StartPage() {
   const supabase = await createClient()
@@ -29,12 +32,19 @@ export default async function StartPage() {
     // Distinguish: has the user already submitted, or do they have no submission at all?
     const { data: submittedSub } = await supabase
       .from('intake_submissions')
-      .select('id, completion_status')
+      .select('id, completion_status, order_id, risk_level')
       .eq('user_id', user.id)
       .eq('completion_status', 'submitted')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
+
+    // Critical cases get a contact-only path (no live generation to show), so
+    // only offer the progress link for non-critical submitted packs.
+    const progressOrderId =
+      submittedSub?.order_id && submittedSub.risk_level !== 'critical'
+        ? (submittedSub.order_id as string)
+        : null
 
     if (submittedSub) {
       return (
@@ -87,6 +97,25 @@ export default async function StartPage() {
               We&apos;ve received your answers and we&apos;re building your compliance pack.
               You&apos;ll receive an email when it&apos;s ready — usually within 48 hours.
             </p>
+            {progressOrderId ? (
+              <p style={{ margin: '0 0 24px' }}>
+                <Link
+                  href={`/status/${progressOrderId}`}
+                  style={{
+                    display: 'inline-block',
+                    background: 'var(--accent-primary)',
+                    color: '#ffffff',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    fontSize: 'var(--body)',
+                    padding: '13px 26px',
+                    borderRadius: 8,
+                  }}
+                >
+                  View pack progress →
+                </Link>
+              </p>
+            ) : null}
             <p style={{ color: 'var(--text-muted)', fontSize: 'var(--body-sm)', margin: 0 }}>
               Questions? Email{' '}
               <a

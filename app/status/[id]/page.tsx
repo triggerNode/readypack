@@ -14,6 +14,8 @@ import { PackProgressClient } from './_components/PackProgressClient'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Pack Progress' }
+
 type Params = Promise<{ id: string }>
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
@@ -35,7 +37,7 @@ export default async function PackProgressPage({ params }: { params: Params }) {
   // ── 2. Authorise: order.user_id MUST equal user.id ──────────────
   const { data: order } = await supabaseAdmin
     .from('orders')
-    .select('id, user_id, delivery_status')
+    .select('id, user_id, delivery_status, display_reference')
     .eq('id', orderId)
     .maybeSingle()
 
@@ -106,7 +108,10 @@ export default async function PackProgressPage({ params }: { params: Params }) {
     return initials.padEnd(2, pad).slice(0, 2)
   })()
 
-  const packReference = `RP-${order.id.slice(0, 8).toUpperCase()}`
+  // Prefer the saved, customer-facing reference so it matches the confirmation
+  // page, the emails, and the admin — fall back to the order-id-derived value.
+  const packReference =
+    (order.display_reference as string | null) ?? `RP-${order.id.slice(0, 8).toUpperCase()}`
 
   return (
     <PackProgressClient

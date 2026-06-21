@@ -6,6 +6,7 @@
 import { anthropic } from '@/lib/anthropic'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { buildQaPrompt } from '@/lib/documents/prompts/qa-check'
+import { parseModelJson } from '@/lib/documents/parse-model-json'
 import type { PromptIntake } from '@/lib/documents/prompts/types'
 import type { SpecificDocumentContent } from '@/lib/documents/content-schemas'
 import type {
@@ -74,7 +75,7 @@ export async function runQaChecks(
   try {
     const response = await anthropic.messages.create({
       model: QA_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     })
 
@@ -86,12 +87,10 @@ export async function runQaChecks(
       throw new Error('No text content in QA response')
     }
 
-    let rawText = textContent.text.trim()
-    if (rawText.startsWith('```')) {
-      rawText = rawText.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
-    }
-
-    parsed = JSON.parse(rawText) as Record<string, unknown>
+    // Use the shared tolerant parser (strips code fences + recovers from
+    // leading/trailing prose) rather than a strict JSON.parse, which previously
+    // threw a SyntaxError and silently skipped the entire QA layer.
+    parsed = parseModelJson(textContent.text, 'QA report') as Record<string, unknown>
   } catch (error) {
     // Log the failure so it is visible in generation_events, then rethrow so
     // the caller can decide how to surface it.

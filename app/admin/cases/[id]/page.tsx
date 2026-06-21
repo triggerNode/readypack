@@ -16,6 +16,8 @@ import styles from './case-detail.module.css'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Admin · Case' }
+
 /**
  * Lightweight card for tabs whose full design isn't built yet (AI Systems,
  * Vendors, QA Report, Payments, Notes, Timeline). Renders the data we already
