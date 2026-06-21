@@ -19,6 +19,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
+import { generateMagicLink } from '@/lib/auth/magic-link'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
 import { buildDeliveryEmail } from '@/lib/email'
@@ -113,24 +114,16 @@ export async function POST(
     }
 
     // ── 3. Generate magic link ─────────────────────────────────────
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     const portalPath = `/portal/${order.id}`
-    const { data: linkData, error: linkError } =
-      await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: customer.email,
-        options: {
-          redirectTo: `${appUrl}/api/auth/callback?next=${encodeURIComponent(portalPath)}`,
-        },
-      })
-
-    if (linkError || !linkData?.properties?.action_link) {
+    let magicLink: string
+    try {
+      magicLink = await generateMagicLink(customer.email, portalPath)
+    } catch (err) {
       return NextResponse.json(
-        { error: `Magic link generation failed: ${linkError?.message ?? 'no action_link'}` },
+        { error: err instanceof Error ? err.message : 'Magic link generation failed' },
         { status: 500 },
       )
     }
-    const magicLink = linkData.properties.action_link
 
     // ── 4. Send email ──────────────────────────────────────────────
     const displayName = customer.trading_name || customer.company_name || null

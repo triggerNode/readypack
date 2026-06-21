@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
+import { generateMagicLink } from '@/lib/auth/magic-link'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
 import { buildRequestInfoEmail } from '@/lib/email'
@@ -155,19 +156,14 @@ export async function requestMoreInfoAction(
 
     // Send the customer-facing "we need more info" email. We generate a fresh
     // magic link into their portal so they can act on the request immediately.
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     const portalPath = `/portal/${c.id}`
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: c.customer_email,
-      options: {
-        redirectTo: `${appUrl}/api/auth/callback?next=${encodeURIComponent(portalPath)}`,
-      },
-    })
-    if (linkError || !linkData?.properties?.action_link) {
+    let magicLink: string
+    try {
+      magicLink = await generateMagicLink(c.customer_email, portalPath)
+    } catch (err) {
       return {
         success: false,
-        error: `Could not generate the portal link: ${linkError?.message ?? 'no action link'}`,
+        error: `Could not generate the portal link: ${err instanceof Error ? err.message : 'unknown error'}`,
       }
     }
 
@@ -177,7 +173,7 @@ export async function requestMoreInfoAction(
       to: [c.customer_email],
       subject: 'We need a bit more information for your ReadyPack order',
       html: buildRequestInfoEmail({
-        magicLink: linkData.properties.action_link,
+        magicLink,
         customerName,
         adminMessage: parsed.data.message,
       }),

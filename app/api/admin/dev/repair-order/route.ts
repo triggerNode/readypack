@@ -7,6 +7,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
+import { generateMagicLink } from '@/lib/auth/magic-link'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
 import { buildMagicLinkEmail, buildDeliveryEmail } from '@/lib/email'
@@ -91,14 +92,12 @@ export async function POST(request: NextRequest) {
 
   try {
     if (action === 'resend_magic_link') {
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: customer.email,
-        options: { redirectTo: `${appUrl}/api/auth/callback?next=/start` },
-      })
-      if (linkError || !linkData?.properties?.action_link) {
+      let magicLink: string
+      try {
+        magicLink = await generateMagicLink(customer.email, '/start')
+      } catch (err) {
         return NextResponse.json(
-          { error: `Magic link generation failed: ${linkError?.message ?? 'no action_link'}` },
+          { error: err instanceof Error ? err.message : 'Magic link generation failed' },
           { status: 500 },
         )
       }
@@ -107,7 +106,7 @@ export async function POST(request: NextRequest) {
         to: [customer.email],
         subject: 'Your ReadyPack intake questionnaire is ready',
         html: buildMagicLinkEmail({
-          magicLink: linkData.properties.action_link,
+          magicLink,
           planName,
           packReference: order.display_reference,
         }),
@@ -133,16 +132,12 @@ export async function POST(request: NextRequest) {
           .eq('submission_id', submission.id)
         if (typeof count === 'number' && count > 0) documentCount = count
       }
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: customer.email,
-        options: {
-          redirectTo: `${appUrl}/api/auth/callback?next=${encodeURIComponent(`/portal/${order.id}`)}`,
-        },
-      })
-      if (linkError || !linkData?.properties?.action_link) {
+      let magicLink: string
+      try {
+        magicLink = await generateMagicLink(customer.email, `/portal/${order.id}`)
+      } catch (err) {
         return NextResponse.json(
-          { error: `Magic link generation failed: ${linkError?.message ?? 'no action_link'}` },
+          { error: err instanceof Error ? err.message : 'Magic link generation failed' },
           { status: 500 },
         )
       }
@@ -151,7 +146,7 @@ export async function POST(request: NextRequest) {
         to: [customer.email],
         subject: 'Your ReadyPack compliance documents are ready for review',
         html: buildDeliveryEmail({
-          magicLink: linkData.properties.action_link,
+          magicLink,
           customerName,
           packReference: order.display_reference,
           documentCount,

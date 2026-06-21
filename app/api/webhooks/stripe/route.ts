@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
 import { buildMagicLinkEmail } from '@/lib/email'
+import { generateMagicLink } from '@/lib/auth/magic-link'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -164,18 +165,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
     throw new Error(`Intake submission insert failed: ${submissionError.message}`)
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-    type: 'magiclink',
-    email,
-    options: {
-      redirectTo: `${appUrl}/api/auth/callback?next=/start`,
-    },
-  })
-  if (linkError || !linkData?.properties?.action_link) {
-    throw new Error(`Magic link generation failed: ${linkError?.message ?? 'no action_link'}`)
-  }
-  const magicLink = linkData.properties.action_link
+  const magicLink = await generateMagicLink(email, '/start')
 
   const sendResult = await resend.emails.send({
     from: FROM_ADDRESS,
