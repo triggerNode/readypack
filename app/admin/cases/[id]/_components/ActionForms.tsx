@@ -1,7 +1,8 @@
 'use client'
 
 import { useFormState, useFormStatus } from 'react-dom'
-import type { CSSProperties, ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { Lock } from 'lucide-react'
 import {
   approvePackAction,
@@ -124,6 +125,67 @@ export function ApprovePackButton({
       </button>
       <FieldError result={result} />
     </form>
+  )
+}
+
+// ─────────────────────────────────────────
+// Release for customer review — case header primary action.
+// Sends the customer the secure portal link to review their watermarked drafts
+// (reusing the send-delivery route, which sets delivery_status='qa_review').
+// The CUSTOMER's approval in the portal is what finalises the pack and removes
+// the watermarks — the admin never pre-approves on the customer's behalf.
+// ─────────────────────────────────────────
+export function ReleaseForReviewButton({
+  caseId,
+  alreadyReleased,
+}: {
+  caseId: string
+  alreadyReleased: boolean
+}) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function release() {
+    setBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/admin/cases/${caseId}/send-delivery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const body = (await res.json().catch(() => ({}))) as { success?: true; error?: string }
+      if (!res.ok || !body.success) {
+        throw new Error(body.error ?? `Release failed (HTTP ${res.status})`)
+      }
+      setMessage('Sent. The customer can now review their pack via the secure link.')
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to release')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={FORM_STACK}>
+      <button
+        type="button"
+        onClick={release}
+        disabled={busy}
+        className={`${detail.btn} ${detail.btnPrimary}`}
+      >
+        {busy ? 'Sending…' : alreadyReleased ? 'Resend customer review link' : 'Release for customer review'}
+      </button>
+      {message ? (
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--accent-primary)' }}>{message}</p>
+      ) : null}
+      {error ? (
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--danger)' }}>{error}</p>
+      ) : null}
+    </div>
   )
 }
 

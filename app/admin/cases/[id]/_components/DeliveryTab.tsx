@@ -47,7 +47,10 @@ export function DeliveryTab({ caseId, deliveryStatus, deliveredAt }: Props) {
 
   const status = statusLabel(deliveryStatus)
   const deliveredAtFmt = deliveredAt ? new Date(deliveredAt).toLocaleString('en-GB') : null
-  const isApproved = deliveryStatus === 'approved' || deliveryStatus === 'delivered'
+  // Release/resend is available once generation is complete. The customer's own
+  // approval in the portal is what finalises the pack — there is no admin
+  // pre-approval gate any more.
+  const canSend = deliveryStatus !== 'pending' && deliveryStatus !== 'generating'
 
   async function sendDelivery() {
     setSending(true)
@@ -96,26 +99,26 @@ export function DeliveryTab({ caseId, deliveryStatus, deliveredAt }: Props) {
             <div>
               <div className={styles.delCardTitle}>Customer Delivery Workflow</div>
               <p className={styles.delCardBody}>
-                Send the secure magic-link to the customer so they can review their watermarked
-                drafts. Once they approve, watermarks are removed and the final PDFs are unlocked
-                for download.
+                Release the pack to the customer: this emails them a secure magic-link to review
+                their watermarked drafts. When the customer approves in the portal, watermarks are
+                removed and their final PDFs are unlocked for download.
               </p>
             </div>
             <button
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={sendDelivery}
-              disabled={sending || !isApproved}
-              title={isApproved ? undefined : 'Approve the pack before sending the delivery email.'}
+              disabled={sending || !canSend}
+              title={canSend ? undefined : 'Generation must finish before the pack can be released.'}
             >
               <SendIcon />
-              {sending ? 'Sending…' : 'Send Delivery Email'}
+              {sending ? 'Sending…' : 'Resend delivery email'}
             </button>
           </div>
 
-          {!isApproved ? (
+          {!canSend ? (
             <p className={styles.delCardBody} style={{ marginTop: 12 }}>
-              Approve the pack before sending the delivery email.
+              Generation must finish before the pack can be released to the customer.
             </p>
           ) : null}
           {error ? <p className={styles.errorLine}>Error: {error}</p> : null}

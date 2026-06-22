@@ -44,6 +44,8 @@ export interface PortalDocument {
   pages: number
   audience: string
   fileUrl: string | null
+  /** Download-disposition URL (forces a real file save), vs fileUrl for inline preview. */
+  downloadUrl: string | null
   deliveryStatus: 'pending' | 'approved' | 'delivered' | 'failed'
 }
 
@@ -558,11 +560,9 @@ export function CustomerPortalClient({
                     {isApproved ? (
                       <a
                         className={`${styles.btn} ${styles.btnSurface} ${styles.btnSm} ${styles.actionDownload}`}
-                        href={doc.fileUrl ?? '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={doc.downloadUrl ?? doc.fileUrl ?? '#'}
                         onClick={(e) => {
-                          if (!doc.fileUrl) e.preventDefault()
+                          if (!doc.downloadUrl && !doc.fileUrl) e.preventDefault()
                           e.stopPropagation()
                         }}
                       >
@@ -1102,15 +1102,23 @@ function DownloadAllButton({
 
   const handleDownload = () => {
     setBusy(true)
-    // Sequential window.open for each document URL — keeps things working
-    // without a zip server. Future enhancement: bundle on the server.
+    // Trigger a real download for each document by clicking a hidden anchor
+    // pointing at its download-disposition URL. (window.open is blocked by the
+    // popup blocker after the first call, which is why only one file opened
+    // before.) Staggered so the browser registers each as a separate download.
     documents.forEach((doc, i) => {
-      if (!doc.fileUrl) return
+      const url = doc.downloadUrl ?? doc.fileUrl
+      if (!url) return
       setTimeout(() => {
-        window.open(doc.fileUrl as string, '_blank', 'noopener,noreferrer')
-      }, i * 150)
+        const a = document.createElement('a')
+        a.href = url
+        a.rel = 'noopener noreferrer'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }, i * 400)
     })
-    setTimeout(() => setBusy(false), Math.max(800, documents.length * 200))
+    setTimeout(() => setBusy(false), Math.max(800, documents.length * 450))
   }
 
   return (

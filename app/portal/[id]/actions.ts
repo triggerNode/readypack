@@ -113,12 +113,12 @@ export async function submitRevisionAction(input: {
     const auth = await requireCustomerOwner(parsed.data.orderId)
     if (!auth.ok) return { success: false, error: auth.error }
 
-    // Block if already approved/delivered — the customer should download
-    // their final PDFs, not request more changes.
-    if (auth.deliveryStatus === 'approved' || auth.deliveryStatus === 'delivered') {
+    // Block only once the pack is finalised ('delivered') — at that point the
+    // customer should download their final PDFs, not request more changes.
+    if (auth.deliveryStatus === 'delivered') {
       return {
         success: false,
-        error: 'This pack has already been approved and cannot be revised here. Please contact support.',
+        error: 'This pack has already been finalised and cannot be revised here. Please contact support.',
       }
     }
 
@@ -205,8 +205,10 @@ export async function approvePackAction(input: {
     const auth = await requireCustomerOwner(parsed.data.orderId)
     if (!auth.ok) return { success: false, error: auth.error }
 
-    // Idempotency: a second approval should be a no-op success, not an error.
-    if (auth.deliveryStatus === 'delivered' || auth.deliveryStatus === 'approved') {
+    // Idempotency: only a finalised pack ('delivered') is a no-op. Any earlier
+    // state (incl. a stale 'approved') still needs finalising — the customer's
+    // approval is what removes the watermarks.
+    if (auth.deliveryStatus === 'delivered') {
       return { success: true, message: 'Your pack is already finalised.' }
     }
 

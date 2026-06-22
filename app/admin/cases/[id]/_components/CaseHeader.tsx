@@ -4,7 +4,7 @@ import { customerDisplayName, planLabel } from '../../../_lib/cases'
 import { StatusBadge } from '../../../_components/StatusBadge'
 import { DeadlineCountdown } from './DeadlineCountdown'
 import {
-  ApprovePackButton,
+  ReleaseForReviewButton,
   EscalateCaseForm,
   RequestMoreInfoForm,
 } from './ActionForms'
@@ -12,9 +12,6 @@ import styles from '../case-detail.module.css'
 
 type Props = {
   c: CaseRow
-  // True when the case has open high/critical-severity flags that must be
-  // resolved or overridden before the pack can be approved.
-  hasBlockingFlags: boolean
 }
 
 function formatOrderedAt(iso: string): string {
@@ -26,16 +23,15 @@ function formatOrderedAt(iso: string): string {
   return `Ordered ${day} ${month} ${year}, ${time}`
 }
 
-export function CaseHeader({ c, hasBlockingFlags }: Props) {
+export function CaseHeader({ c }: Props) {
   const name = customerDisplayName(c)
-  // Lock approval only while work is GENUINELY still in progress (payment not
-  // settled, or generation still queued/running). The `qa_review` state — which
-  // the cases view also rolls up into `in_progress` — is precisely the
-  // human-review state where the admin is meant to approve, so it must NOT lock
-  // the button. (Without this, every completed pack sits forever as "QA
-  // running" with Approve disabled.)
-  const isQaRunning =
-    c.delivery_status === 'pending' || c.delivery_status === 'generating'
+  // The pack has already been released to the customer once it has reached (or
+  // passed) the customer-review stage — relabel the button to "Resend" then.
+  const alreadyReleased =
+    c.delivery_status === 'qa_review' ||
+    c.delivery_status === 'escalated' ||
+    c.delivery_status === 'approved' ||
+    c.delivery_status === 'delivered'
 
   return (
     <div>
@@ -62,11 +58,7 @@ export function CaseHeader({ c, hasBlockingFlags }: Props) {
         </div>
 
         <div className={styles.caseheadRow2}>
-          <ApprovePackButton
-            caseId={c.id}
-            hasCriticalFlags={hasBlockingFlags}
-            isQaRunning={isQaRunning}
-          />
+          <ReleaseForReviewButton caseId={c.id} alreadyReleased={alreadyReleased} />
           <RequestMoreInfoForm caseId={c.id} />
           <EscalateCaseForm caseId={c.id} />
           {c.stripe_payment_id ? (

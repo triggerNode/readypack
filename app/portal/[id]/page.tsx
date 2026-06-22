@@ -205,6 +205,13 @@ export default async function CustomerPortalPage({ params }: { params: Params })
   const portalDocs: PortalDocument[] = DOC_ORDER.map((docType) => {
     const row = signedDocs.find((d) => d.document_type === docType)
     const meta = DOC_META[docType]
+    const signed = row?.file_url ?? null
+    // A second URL flavour that forces a real file download (Content-Disposition:
+    // attachment) with a clean filename, vs the inline `fileUrl` used for preview.
+    const downloadName = `${meta.ref}-${meta.title.replace(/[^a-z0-9]+/gi, '-')}.pdf`
+    const downloadUrl = signed
+      ? `${signed}${signed.includes('?') ? '&' : '?'}download=${encodeURIComponent(downloadName)}`
+      : null
     return {
       id: row?.id ?? docType,
       documentType: docType,
@@ -214,7 +221,8 @@ export default async function CustomerPortalPage({ params }: { params: Params })
       reg: meta.reg,
       pages: row?.page_count ?? 4,
       audience: meta.audience,
-      fileUrl: row?.file_url ?? null,
+      fileUrl: signed,
+      downloadUrl,
       deliveryStatus: row?.delivery_status ?? 'pending',
     }
   })
@@ -231,10 +239,13 @@ export default async function CustomerPortalPage({ params }: { params: Params })
 
   const packReference = `RP-${order.id.slice(0, 8).toUpperCase()}`
 
-  // The portal recognises two terminal states for the customer:
-  //   • approved / delivered → "Final" view (download all, no watermark)
-  //   • everything else      → "Pending" review view (selection + revision)
-  const isApproved = order.delivery_status === 'delivered' || order.delivery_status === 'approved'
+  // The portal shows the "Final" view (download, no watermark) ONLY once the
+  // CUSTOMER has approved, which finalises the pack and sets 'delivered'. Under
+  // the customer-approves model the admin never sets 'approved' on the customer's
+  // behalf, so anything short of 'delivered' is still the review stage. (This
+  // also means an order left in a stale 'approved' state correctly falls back to
+  // the review flow rather than showing un-watermarked-but-actually-draft PDFs.)
+  const isApproved = order.delivery_status === 'delivered'
 
   return (
     <CustomerPortalClient
