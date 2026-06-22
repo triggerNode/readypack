@@ -28,7 +28,14 @@ function formatOrderedAt(iso: string): string {
 
 export function CaseHeader({ c, hasBlockingFlags }: Props) {
   const name = customerDisplayName(c)
-  const isQaRunning = c.status === 'in_progress'
+  // Lock approval only while work is GENUINELY still in progress (payment not
+  // settled, or generation still queued/running). The `qa_review` state — which
+  // the cases view also rolls up into `in_progress` — is precisely the
+  // human-review state where the admin is meant to approve, so it must NOT lock
+  // the button. (Without this, every completed pack sits forever as "QA
+  // running" with Approve disabled.)
+  const isQaRunning =
+    c.delivery_status === 'pending' || c.delivery_status === 'generating'
 
   return (
     <div>
