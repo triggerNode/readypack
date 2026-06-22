@@ -52,13 +52,17 @@ function readPersonalisation(
     (personalisation && typeof personalisation.companyName === 'string'
       ? personalisation.companyName
       : '') || 'Your Company'
-  return { companyName }
+  const logoUrl =
+    personalisation && typeof personalisation.logoUrl === 'string' && personalisation.logoUrl
+      ? personalisation.logoUrl
+      : undefined
+  return { companyName, logoUrl }
 }
 
 export async function finaliseOrderPack(orderId: string): Promise<FinaliseResult> {
   const submissionRes = await supabaseAdmin
     .from('intake_submissions')
-    .select('id')
+    .select('id, normalised_answers')
     .eq('order_id', orderId)
     .maybeSingle()
 
@@ -66,6 +70,13 @@ export async function finaliseOrderPack(orderId: string): Promise<FinaliseResult
   if (!submissionId) {
     return { total: 0, succeeded: 0, failed: [] }
   }
+
+  // Order-level logo fallback for packs generated before the logo was persisted
+  // in render_metadata — recover it from the questionnaire upload, exactly as
+  // the generation pipeline derives it. New packs carry it in render_metadata.
+  const normalised = (submissionRes.data?.normalised_answers ?? {}) as Record<string, unknown>
+  const fallbackLogoUrl =
+    typeof normalised.logo_url === 'string' && normalised.logo_url ? normalised.logo_url : undefined
 
   const { data: docs, error } = await supabaseAdmin
     .from('generated_documents')
@@ -95,7 +106,7 @@ export async function finaliseOrderPack(orderId: string): Promise<FinaliseResult
 
       const renderResult = await renderer.render(
         row.content_json as unknown as DocumentContent,
-        { showWatermark: false, logoUrl, companyName },
+        { showWatermark: false, logoUrl: logoUrl ?? fallbackLogoUrl, companyName },
       )
 
       // Overwrite the draft file in place when we can resolve the original

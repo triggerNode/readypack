@@ -573,6 +573,9 @@ You MUST explicitly weave this context into the executive summaries and relevant
               contactEmail,
               preparedDate,
               reviewDate,
+              // Persist the logo so the watermark-free re-render (finaliseOrderPack)
+              // can restore it — without this the final PDFs lose the client logo.
+              logoUrl: logoUrl || null,
             },
           },
           page_count: renderResult.page_count,
