@@ -4,9 +4,59 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { finaliseOrderPack } from '@/lib/documents/finalise-pack'
+import { finaliseDocument, finaliseOrderPack } from '@/lib/documents/finalise-pack'
+import { generateMagicLink } from '@/lib/auth/magic-link'
+import { resend } from '@/lib/resend'
+import { buildPackCompleteEmail } from '@/lib/email'
 import { notifyAdmin } from '@/lib/notifications'
 import type { DocumentType } from '@/types/database'
+
+const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
+
+function packReferenceForOrder(orderId: string): string {
+  return `RP-${orderId.slice(0, 8).toUpperCase()}`
+}
+
+// Best-effort "your pack is complete" email once every document is final.
+// Never throws into the action — the in-app result is the source of truth;
+// the email is a courtesy notification.
+async function sendPackCompleteEmail(orderId: string): Promise<void> {
+  try {
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('user_id, display_reference')
+      .eq('id', orderId)
+      .maybeSingle()
+    if (!order?.user_id) return
+    const { data: customer } = await supabaseAdmin
+      .from('users')
+      .select('email, company_name, trading_name')
+      .eq('id', order.user_id)
+      .maybeSingle()
+    if (!customer?.email) return
+    const { count } = await supabaseAdmin
+      .from('generated_documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('submission_id',
+        (await supabaseAdmin.from('intake_submissions').select('id').eq('order_id', orderId).maybeSingle())
+          .data?.id ?? '00000000-0000-0000-0000-000000000000',
+      )
+    const magicLink = await generateMagicLink(customer.email, `/portal/${orderId}`)
+    await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [customer.email],
+      subject: 'Your ReadyPack compliance pack is complete',
+      html: buildPackCompleteEmail({
+        magicLink,
+        customerName: customer.trading_name || customer.company_name || null,
+        packReference: order.display_reference ?? packReferenceForOrder(orderId),
+        documentCount: count ?? 9,
+      }),
+    })
+  } catch {
+    // swallow — courtesy email failure must not fail the approval
+  }
+}
 
 /**
  * Customer Portal Server Actions
@@ -122,6 +172,24 @@ export async function submitRevisionAction(input: {
       }
     }
 
+    // Consistency safeguard (build-spec §6): the 9 documents share facts (dates,
+    // AI tool names, risk decisions). A revision that changes a shared fact can
+    // leave an ALREADY-FINAL document stale. We can't know what will change until
+    // the admin regenerates, so we conservatively record which documents are
+    // already final (and not themselves being revised) so the admin Revisions
+    // surface can flag them for a re-check. Inform, don't block.
+    let consistencyAffected: string[] = []
+    if (auth.submissionId) {
+      const { data: finalDocs } = await supabaseAdmin
+        .from('generated_documents')
+        .select('document_type')
+        .eq('submission_id', auth.submissionId)
+        .eq('delivery_status', 'delivered')
+      consistencyAffected = ((finalDocs ?? []) as Array<{ document_type: string }>)
+        .map((d) => d.document_type)
+        .filter((t) => !parsed.data.documentTypes.includes(t as DocumentType))
+    }
+
     const { error: insertError } = await supabaseAdmin.from('case_revisions').insert({
       order_id: auth.orderId,
       submission_id: auth.submissionId,
@@ -130,9 +198,24 @@ export async function submitRevisionAction(input: {
       feedback_text: parsed.data.feedbackText,
       kind: 'revision',
       status: 'submitted',
+      metadata: { consistency_affected: consistencyAffected },
     })
     if (insertError) {
       return { success: false, error: `Could not save your request: ${insertError.message}` }
+    }
+
+    // Move the affected documents into the 'in_revision' state so the portal
+    // stops offering Approve/Download on them (fixes the §3 bug where a customer
+    // could request a change then "Approve all" and silently discard it).
+    if (auth.submissionId) {
+      const { error: docErr } = await supabaseAdmin
+        .from('generated_documents')
+        .update({ delivery_status: 'in_revision' })
+        .eq('submission_id', auth.submissionId)
+        .in('document_type', parsed.data.documentTypes)
+      if (docErr) {
+        return { success: false, error: `Could not flag the documents for revision: ${docErr.message}` }
+      }
     }
 
     // Escalate to admin queue so the case is visibly flagged.
@@ -238,13 +321,16 @@ export async function approvePackAction(input: {
       metadata: {
         documents_finalised: result.succeeded,
         documents_failed: result.failed.length,
+        all_final: result.allFinal,
       },
     })
 
-    await supabaseAdmin
-      .from('orders')
-      .update({ delivery_status: 'delivered', updated_at: nowIso })
-      .eq('id', auth.orderId)
+    // The order roll-up to 'delivered' is handled inside finaliseOrderPack
+    // (only once EVERY document is final). When some are still in revision the
+    // order stays escalated/qa_review until those complete.
+    if (result.allFinal) {
+      await sendPackCompleteEmail(auth.orderId)
+    }
 
     await supabaseAdmin.from('audit_events').insert({
       admin_user_id: null,
@@ -267,12 +353,97 @@ export async function approvePackAction(input: {
       result.failed.length > 0
         ? ` (${result.failed.length} document(s) need attention — we'll follow up shortly).`
         : ''
-    return { success: true, message: `Your pack is finalised.${partialNote}` }
+    const message = result.allFinal
+      ? `Your pack is finalised.${partialNote}`
+      : `Your ready documents are finalised and downloadable. Documents still in revision will be ready to approve once we've made your changes.${partialNote}`
+    return { success: true, message }
   } catch (e) {
     return {
       success: false,
       error: e instanceof Error ? e.message : 'Unexpected error',
     }
+  }
+}
+
+// ─────────────────────────────────────────
+// 2b. Approve a SINGLE document (per-document approval)
+// Finalises just one document (watermark off → downloadable) while the rest
+// of the pack stays in its own state. Rolls the order up to 'delivered' only
+// once every document is final (handled inside finaliseDocument).
+// ─────────────────────────────────────────
+const ApproveDocSchema = z.object({
+  orderId: UUID,
+  documentType: DocumentTypeSchema,
+})
+
+export async function approveDocumentAction(input: {
+  orderId: string
+  documentType: DocumentType
+}): Promise<PortalActionResult> {
+  try {
+    const parsed = ApproveDocSchema.safeParse(input)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    }
+
+    const auth = await requireCustomerOwner(parsed.data.orderId)
+    if (!auth.ok) return { success: false, error: auth.error }
+    if (!auth.submissionId) {
+      return { success: false, error: 'No documents found for this pack.' }
+    }
+
+    // Find the single document by type for this pack.
+    const { data: doc, error: docError } = await supabaseAdmin
+      .from('generated_documents')
+      .select('id, delivery_status')
+      .eq('submission_id', auth.submissionId)
+      .eq('document_type', parsed.data.documentType)
+      .maybeSingle()
+    if (docError) return { success: false, error: docError.message }
+    if (!doc) return { success: false, error: 'That document was not found.' }
+
+    if (doc.delivery_status === 'delivered') {
+      return { success: true, message: 'That document is already finalised.' }
+    }
+    if (doc.delivery_status === 'in_revision') {
+      return {
+        success: false,
+        error: "That document is being revised — you'll be able to approve it once we re-release it.",
+      }
+    }
+
+    const result = await finaliseDocument(doc.id)
+    if (result.succeeded === 0) {
+      return {
+        success: false,
+        error: result.failed[0]?.error ?? 'Could not finalise that document. Please contact support.',
+      }
+    }
+
+    await supabaseAdmin.from('audit_events').insert({
+      admin_user_id: null,
+      action_type: 'customer_document_approved',
+      target_type: 'order',
+      target_id: auth.orderId,
+      metadata: { customer_user_id: auth.userId, document_type: parsed.data.documentType, all_final: result.allFinal },
+    })
+
+    if (result.allFinal) {
+      await sendPackCompleteEmail(auth.orderId)
+    }
+
+    revalidatePath(`/portal/${auth.orderId}`)
+    revalidatePath(`/admin/cases/${auth.orderId}`)
+    revalidatePath('/admin')
+
+    return {
+      success: true,
+      message: result.allFinal
+        ? 'Document approved — your full pack is now complete.'
+        : 'Document approved and ready to download.',
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unexpected error' }
   }
 }
 

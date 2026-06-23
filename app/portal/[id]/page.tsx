@@ -193,7 +193,7 @@ export default async function CustomerPortalPage({ params }: { params: Params })
     file_url: string | null
     page_count: number | null
     version_number: number
-    delivery_status: 'pending' | 'approved' | 'delivered' | 'failed'
+    delivery_status: 'pending' | 'approved' | 'in_revision' | 'delivered' | 'failed'
     render_metadata: Record<string, unknown> | null
   }>
 
@@ -212,6 +212,8 @@ export default async function CustomerPortalPage({ params }: { params: Params })
     const downloadUrl = signed
       ? `${signed}${signed.includes('?') ? '&' : '?'}download=${encodeURIComponent(downloadName)}`
       : null
+    const meta2 = (row?.render_metadata ?? null) as Record<string, unknown> | null
+    const isRevised = Boolean(meta2 && meta2.revised === true)
     return {
       id: row?.id ?? docType,
       documentType: docType,
@@ -224,6 +226,7 @@ export default async function CustomerPortalPage({ params }: { params: Params })
       fileUrl: signed,
       downloadUrl,
       deliveryStatus: row?.delivery_status ?? 'pending',
+      isRevised,
     }
   })
 

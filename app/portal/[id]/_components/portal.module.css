@@ -1379,3 +1379,101 @@
   .reqOverlay { align-items: flex-end; padding: 0; }
   .reqCard { max-height: 92vh; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 }
+
+/* ============================================================
+   PER-DOCUMENT APPROVAL + REVISION (design 12)
+   Leaf classes added on top of the existing portal styles. Per-card
+   status is chosen in JSX (docCardRevision / docCardFinal / selected),
+   not via body-state selectors.
+   ============================================================ */
+
+/* summary chip with counts */
+.summaryChip {
+  display: inline-flex; align-items: center; gap: 0; flex-wrap: wrap;
+  padding: 6px 6px 6px 14px; border-radius: var(--radius-pill);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; color: var(--text-secondary);
+}
+.scSeg { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; }
+.scSeg + .scSeg { border-left: 1px solid var(--border-subtle); }
+.scDot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.scFinal { color: var(--text-accent); }
+.scFinal .scDot { background: var(--accent-primary); }
+.scRev { color: #a5b4fc; }
+.scRev .scDot { background: #818cf8; }
+.scDraft { color: #facc15; }
+.scDraft .scDot { background: #facc15; }
+
+/* in-revision card surface + indigo accents */
+.docCardRevision {
+  border-color: rgba(99,102,241,0.30);
+  background: linear-gradient(180deg, rgba(99,102,241,0.05), rgba(99,102,241,0.012)), var(--bg-secondary);
+}
+.docCardRevision:hover { border-color: rgba(99,102,241,0.45); box-shadow: 0 4px 24px rgba(99,102,241,0.08); }
+.docCardFinal { border-color: rgba(22,163,74,0.16); }
+.docCardFinal:hover { border-color: rgba(22,163,74,0.30); box-shadow: var(--shadow-card-hover); }
+.docIconFinal { background: var(--accent-muted); border-color: rgba(22,163,74,0.25); color: var(--text-accent); }
+.docIconRevision { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.30); color: #818cf8; }
+
+/* in-revision badge (pulsing indigo dot) */
+.badgeRev { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.30); color: #a5b4fc; }
+.badgeRev .bdot { position: relative; }
+.badgeRev .bdot::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; background: currentColor;
+  animation: ping 2s var(--ease-out) infinite;
+}
+
+/* "Revised" tag + note */
+.badgeStack { display: flex; align-items: center; gap: 7px; }
+.revisedTag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--text-accent);
+}
+.revisedNote { position: relative; z-index: 1; font-size: 12px; color: var(--text-accent); margin-top: 8px; }
+
+/* in-revision message block */
+.revMsg { position: relative; z-index: 1; display: flex; margin-top: 14px; gap: 10px; align-items: flex-start; }
+.revMsg svg { color: #818cf8; flex-shrink: 0; margin-top: 1px; }
+.revMsg span { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); text-wrap: pretty; }
+
+/* per-card action rows */
+.scopeLabel {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 9px;
+}
+.actRow { display: flex; gap: 8px; }
+.actRow .actApprove { flex: 1; }
+.actSecondrow { display: flex; gap: 8px; margin-top: 8px; }
+.actSecondrow .btn { flex: 1; }
+.actRevision {
+  display: flex; align-items: center; gap: 7px; justify-content: center;
+  font-size: 12.5px; font-weight: 600; color: #a5b4fc; padding: 9px 0;
+}
+
+/* approve flash on a single card */
+@keyframes cardApprove {
+  0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.0); }
+  30% { box-shadow: 0 0 0 2px rgba(22,163,74,0.5), 0 10px 30px rgba(22,163,74,0.18); }
+  100% { box-shadow: none; }
+}
+.justApproved { animation: cardApprove 900ms var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .justApproved { animation: none; }
+  .badgeRev .bdot::after { animation: none; }
+}
+
+/* request-changes overlay extras (design 12) */
+.reqWhy { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin: 10px 0 0; text-wrap: pretty; }
+.reqRelatesRef { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.04em; }
+.reqChips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.reqMchip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: var(--radius-pill);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle); color: var(--text-secondary);
+  font-size: 12.5px; font-weight: 600;
+}
+.reqFootActions { display: flex; gap: 10px; align-items: center; }
+@media (max-width: 720px) {
+  .reqFootActions { width: 100%; }
+  .reqFootActions .btn { flex: 1; }
+}
