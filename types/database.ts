@@ -31,7 +31,7 @@ export type DocumentType =
   | 'complaints_procedure_pack'
   | 'procurement_response_memo'
 export type QaStatus = 'pending' | 'passed' | 'flagged' | 'failed'
-export type DocDeliveryStatus = 'pending' | 'approved' | 'delivered' | 'failed'
+export type DocDeliveryStatus = 'pending' | 'approved' | 'in_revision' | 'delivered' | 'failed'
 
 // ── Portal "Request More Info" remediation (ST2-4, migration 007) ──
 export type InfoRequestStatus = 'open' | 'submitted' | 'resolved' | 'cancelled'
