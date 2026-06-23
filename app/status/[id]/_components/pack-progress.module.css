@@ -404,3 +404,21 @@
   .nodeCurrent.modeHeld .bullet svg { animation: none; opacity: 1; }
   .trackFill { transition: none; }
 }
+
+/* per-document partial counts line (design: PackProgress-Partial) */
+.counts {
+  display: flex; margin: 30px auto 0; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 0; padding: 9px 8px; border-radius: var(--radius-pill);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle); width: max-content; max-width: 100%;
+}
+.countsSeg { display: inline-flex; align-items: center; gap: 7px; padding: 0 16px; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
+.countsSeg + .countsSeg { border-left: 1px solid var(--border-subtle); }
+.cdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.countsFinal { color: var(--text-accent); }
+.countsFinal .cdot { background: var(--accent-primary); }
+.countsRev { color: #a5b4fc; }
+.countsRev .cdot { background: #818cf8; }
+.countsAwait { color: #facc15; }
+.countsAwait .cdot { background: #facc15; }
+.calloutPartial { background: var(--bg-secondary); border: 1px solid var(--border-subtle); }
+.calloutPartial .calloutIco { background: var(--accent-muted); border: 1px solid rgba(22,163,74,0.28); color: var(--accent-primary); }

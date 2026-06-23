@@ -28,6 +28,10 @@ export interface PackStatusInputs {
   jobStartedAt: string | null
   docsReady: number
   openInfoRequests: number
+  /** Per-document approval/revision counts (migration 008). Optional so older
+   *  callers keep working; default to 0. */
+  docsFinal?: number
+  docsInRevision?: number
   now?: number
 }
 
@@ -37,11 +41,22 @@ export interface PackStatus {
   phaseIndex: number
   docsReady: number
   docsTotal: number
+  /** Documents the customer has approved (final/downloadable). */
+  docsFinal: number
+  /** Documents currently being revised by our team. */
+  docsInRevision: number
+  /** Documents still awaiting the customer's review (drafts, not in revision). */
+  docsAwaitingReview: number
 }
 
 export function computePackState(input: PackStatusInputs): PackStatus {
   const docsReady = input.docsReady
-  const base = { docsReady, docsTotal: DOC_TOTAL }
+  const docsFinal = input.docsFinal ?? 0
+  const docsInRevision = input.docsInRevision ?? 0
+  // Drafts the customer still needs to look at = generated, minus the ones
+  // already final and the ones in revision. Never negative.
+  const docsAwaitingReview = Math.max(0, docsReady - docsFinal - docsInRevision)
+  const base = { docsReady, docsTotal: DOC_TOTAL, docsFinal, docsInRevision, docsAwaitingReview }
   const now = input.now ?? Date.now()
 
   // 1. Needs the customer to supply information — highest priority, drives the

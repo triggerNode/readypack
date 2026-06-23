@@ -61,6 +61,8 @@ export default async function PackProgressPage({ params }: { params: Params }) {
   ])
 
   let docsReady = 0
+  let docsFinal = 0
+  let docsInRevision = 0
   let openInfoRequests = 0
   let jobStatus: string | null = null
   let jobStartedAt: string | null = null
@@ -69,7 +71,7 @@ export default async function PackProgressPage({ params }: { params: Params }) {
     const [docsResult, infoResult, jobResult] = await Promise.all([
       supabaseAdmin
         .from('generated_documents')
-        .select('id', { count: 'exact', head: true })
+        .select('delivery_status')
         .eq('submission_id', submission.id),
       supabaseAdmin
         .from('info_requests')
@@ -84,7 +86,10 @@ export default async function PackProgressPage({ params }: { params: Params }) {
         .limit(1)
         .maybeSingle(),
     ])
-    docsReady = docsResult.count ?? 0
+    const docRows = (docsResult.data ?? []) as Array<{ delivery_status: string }>
+    docsReady = docRows.length
+    docsFinal = docRows.filter((d) => d.delivery_status === 'delivered').length
+    docsInRevision = docRows.filter((d) => d.delivery_status === 'in_revision').length
     openInfoRequests = infoResult.count ?? 0
     jobStatus = (jobResult.data?.status as string | undefined) ?? null
     jobStartedAt = (jobResult.data?.started_at as string | undefined) ?? null
@@ -95,6 +100,8 @@ export default async function PackProgressPage({ params }: { params: Params }) {
     jobStatus,
     jobStartedAt,
     docsReady,
+    docsFinal,
+    docsInRevision,
     openInfoRequests,
   })
 

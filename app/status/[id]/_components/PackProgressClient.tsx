@@ -160,6 +160,13 @@ export function PackProgressClient({
   const showMicro = status.state === 'progress' || status.state === 'delayed'
   const microText = `${status.docsReady} of ${status.docsTotal} documents drafted`
 
+  // Per-document partial completion (design: PackProgress-Partial).
+  const finalN = status.docsFinal ?? 0
+  const revN = status.docsInRevision ?? 0
+  const awaitN = status.docsAwaitingReview ?? 0
+  const showCounts = finalN > 0 || revN > 0
+  const isPartial = finalN > 0 && finalN < status.docsTotal && status.state !== 'ready'
+
   return (
     <div className={`${styles.shell} ${styles[view.stateClass]}`}>
       {/* ── Nav ─────────────────────────────────────────────── */}
@@ -206,6 +213,30 @@ export function PackProgressClient({
               <span>{view.headline}</span>
             </h1>
             <p className={styles.sub}>{view.sub}</p>
+
+            {/* Per-document counts (partial / complete) */}
+            {showCounts ? (
+              <div className={styles.counts}>
+                {finalN > 0 ? (
+                  <span className={`${styles.countsSeg} ${styles.countsFinal}`}>
+                    <span className={styles.cdot} />
+                    {finalN} of {status.docsTotal} approved
+                  </span>
+                ) : null}
+                {revN > 0 ? (
+                  <span className={`${styles.countsSeg} ${styles.countsRev}`}>
+                    <span className={styles.cdot} />
+                    {revN} in revision
+                  </span>
+                ) : null}
+                {awaitN > 0 ? (
+                  <span className={`${styles.countsSeg} ${styles.countsAwait}`}>
+                    <span className={styles.cdot} />
+                    {awaitN} awaiting your review
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Stepper card */}
             <div className={styles.stepperCard}>
@@ -299,6 +330,29 @@ export function PackProgressClient({
                     Our team has been notified and is on it. Your pack is safe, and we’ll email you
                     the moment it’s ready.
                   </p>
+                </div>
+              </div>
+            ) : null}
+
+            {isPartial ? (
+              <div className={`${styles.callout} ${styles.calloutPartial}`}>
+                <span className={styles.calloutIco}>
+                  <ShieldCheck width={22} height={22} aria-hidden />
+                </span>
+                <div className={styles.calloutBody}>
+                  <p className={styles.calloutTitle}>Your approved documents are unlocked.</p>
+                  <p className={styles.calloutText}>
+                    Download the approved documents now and keep approving the rest at your own pace.
+                    We’ll email you when any document you’ve sent back is ready to approve.
+                  </p>
+                  <div className={styles.calloutCta}>
+                    <Link
+                      className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`}
+                      href={`/portal/${orderId}`}
+                    >
+                      Review your pack →
+                    </Link>
+                  </div>
                 </div>
               </div>
             ) : null}

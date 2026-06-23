@@ -45,15 +45,19 @@ export async function GET(
     .maybeSingle()
 
   let docsReady = 0
+  let docsFinal = 0
+  let docsInRevision = 0
   let openInfoRequests = 0
   let jobStatus: string | null = null
   let jobStartedAt: string | null = null
 
   if (submission) {
     const [docsResult, infoResult, jobResult] = await Promise.all([
+      // Fetch the per-document delivery states once and tally them locally —
+      // cheaper than three separate head-count round-trips.
       supabaseAdmin
         .from('generated_documents')
-        .select('id', { count: 'exact', head: true })
+        .select('delivery_status')
         .eq('submission_id', submission.id),
       supabaseAdmin
         .from('info_requests')
@@ -68,7 +72,10 @@ export async function GET(
         .limit(1)
         .maybeSingle(),
     ])
-    docsReady = docsResult.count ?? 0
+    const docRows = (docsResult.data ?? []) as Array<{ delivery_status: string }>
+    docsReady = docRows.length
+    docsFinal = docRows.filter((d) => d.delivery_status === 'delivered').length
+    docsInRevision = docRows.filter((d) => d.delivery_status === 'in_revision').length
     openInfoRequests = infoResult.count ?? 0
     jobStatus = (jobResult.data?.status as string | undefined) ?? null
     jobStartedAt = (jobResult.data?.started_at as string | undefined) ?? null
@@ -79,6 +86,8 @@ export async function GET(
     jobStatus,
     jobStartedAt,
     docsReady,
+    docsFinal,
+    docsInRevision,
     openInfoRequests,
   })
 
