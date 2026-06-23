@@ -70,9 +70,23 @@ export async function POST(
         { status: 409 },
       )
     }
-    if (order.delivery_status !== 'approved' && order.delivery_status !== 'delivered') {
+    // Customer-approves model: the admin RELEASES the watermarked drafts for the
+    // customer to review (which the customer then approves to finalise). So a
+    // generated pack awaiting review (qa_review / escalated) — or one already
+    // approved/delivered (a resend) — is releasable; only a pack that hasn't been
+    // generated yet is not. (The doc-count guard below enforces "has documents".)
+    const releasableFrom: ReadonlyArray<typeof order.delivery_status> = [
+      'pending',
+      'generating',
+      'qa_review',
+      'escalated',
+      'approved',
+      'delivered',
+      'failed',
+    ]
+    if (!releasableFrom.includes(order.delivery_status)) {
       return NextResponse.json(
-        { error: 'Cannot send delivery email — order has not been approved yet. Approve the pack first.' },
+        { error: `Cannot send delivery email from status "${order.delivery_status}".` },
         { status: 400 },
       )
     }

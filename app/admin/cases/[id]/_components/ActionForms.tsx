@@ -11,6 +11,8 @@ import {
   overrideAndNoteAction,
   requestMoreInfoAction,
   resolveInfoRequestAction,
+  regenerateRevisionAction,
+  releaseRevisionAction,
   triggerGenerationAction,
   type ActionResult,
 } from '../actions'
@@ -386,6 +388,44 @@ export function ResolveInfoRequestButton({
       <input type="hidden" name="caseId" value={caseId} />
       <input type="hidden" name="infoRequestId" value={infoRequestId} />
       <FlagSubmit variant="green-outline">Mark Resolved</FlagSubmit>
+      <FieldError result={result} />
+    </form>
+  )
+}
+
+// Revisions tab — regenerate the customer's revision with their feedback.
+export function RegenerateRevisionButton({
+  caseId,
+  revisionId,
+}: {
+  caseId: string
+  revisionId: string
+}) {
+  const [result, formAction] = useFormState(regenerateRevisionAction, null)
+  return (
+    <form action={formAction} className={flag.sbtnStack}>
+      <input type="hidden" name="caseId" value={caseId} />
+      <input type="hidden" name="revisionId" value={revisionId} />
+      <FlagSubmit variant="secondary">Regenerate with feedback</FlagSubmit>
+      <FieldError result={result} />
+    </form>
+  )
+}
+
+// Revisions tab — re-release the revised document(s) for customer review.
+export function ReleaseRevisionButton({
+  caseId,
+  revisionId,
+}: {
+  caseId: string
+  revisionId: string
+}) {
+  const [result, formAction] = useFormState(releaseRevisionAction, null)
+  return (
+    <form action={formAction} className={flag.sbtnStack}>
+      <input type="hidden" name="caseId" value={caseId} />
+      <input type="hidden" name="revisionId" value={revisionId} />
+      <FlagSubmit variant="green-outline">Re-release for review</FlagSubmit>
       <FieldError result={result} />
     </form>
   )

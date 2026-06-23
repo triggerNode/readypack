@@ -8,7 +8,7 @@ type DocumentRow = {
   id: string
   document_type: string
   qa_status: DocStatus
-  delivery_status: 'pending' | 'approved' | 'delivered' | 'failed'
+  delivery_status: 'pending' | 'approved' | 'in_revision' | 'delivered' | 'failed'
   generated_at: string | null
   file_url?: string | null
   file_size_bytes?: number | null

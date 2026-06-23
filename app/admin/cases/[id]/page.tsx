@@ -11,6 +11,7 @@ import { IntakeAnswersTab } from './_components/IntakeAnswersTab'
 import { OverviewTab } from './_components/OverviewTab'
 import { RedFlagsTab, type FlagRow } from './_components/RedFlagsTab'
 import { InfoRequestsTab, type InfoRequestRow } from './_components/InfoRequestsTab'
+import { RevisionsTab, type RevisionRow } from './_components/RevisionsTab'
 import * as Tabs from './_components/Tabs'
 import styles from './case-detail.module.css'
 
@@ -74,7 +75,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   // ── Related rows (parallel) ───────────────────────────────
   const submissionId = caseRow.submission_id ?? null
 
-  const [flagsRes, docsRes, aiToolsRes, vendorsRes, qaReportsRes, genEventsRes, infoReqRes] =
+  const [flagsRes, docsRes, aiToolsRes, vendorsRes, qaReportsRes, genEventsRes, infoReqRes, revisionsRes] =
     await Promise.all([
     submissionId
       ? supabaseAdmin
@@ -125,6 +126,13 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
       .select('id, document_type, prompt, options, answer_text, answer_selections, status, created_at, answered_at')
       .eq('order_id', id)
       .order('created_at', { ascending: false }),
+    // Customer-initiated revision requests (id === order id). Drives the
+    // Revisions tab + badge, and the Regenerate / Re-release actions.
+    supabaseAdmin
+      .from('case_revisions')
+      .select('id, document_types, feedback_text, status, kind, created_at, metadata')
+      .eq('order_id', id)
+      .order('created_at', { ascending: false }),
   ])
 
   const flags = (flagsRes.data ?? []) as FlagRow[]
@@ -134,7 +142,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
       id: string
       document_type: string
       qa_status: 'pending' | 'passed' | 'flagged' | 'failed'
-      delivery_status: 'pending' | 'approved' | 'delivered' | 'failed'
+      delivery_status: 'pending' | 'approved' | 'in_revision' | 'delivered' | 'failed'
       generated_at: string | null
       file_url: string | null
       file_size_bytes: number | null
@@ -172,6 +180,16 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   }))
   const openInfoRequestCount = infoRequests.filter(
     (r) => r.status === 'open' || r.status === 'submitted',
+  ).length
+
+  const revisions = ((revisionsRes.data ?? []) as RevisionRow[]).map((r) => ({
+    ...r,
+    document_types: Array.isArray(r.document_types) ? r.document_types : [],
+    metadata: (r.metadata ?? {}) as Record<string, unknown>,
+  }))
+  // Customer-initiated revisions still needing the admin to act (regenerate).
+  const openRevisionCount = revisions.filter(
+    (r) => r.kind === 'revision' && (r.status === 'submitted' || r.status === 'in_review'),
   ).length
 
   const openFlags = flags
@@ -237,6 +255,16 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
               }
             >
               Info Requests
+            </Tabs.Trigger>
+            <Tabs.Trigger
+              value="revisions"
+              badge={
+                openRevisionCount > 0 ? (
+                  <span className={styles.tabFlagdot}>{openRevisionCount}</span>
+                ) : null
+              }
+            >
+              Revisions
             </Tabs.Trigger>
             <Tabs.Trigger value="delivery">Delivery</Tabs.Trigger>
             <Tabs.Trigger value="payments">Payments</Tabs.Trigger>
@@ -310,6 +338,10 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
 
           <Tabs.Panel value="info">
             <InfoRequestsTab caseId={caseRow.id} requests={infoRequests} />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="revisions">
+            <RevisionsTab caseId={caseRow.id} revisions={revisions} />
           </Tabs.Panel>
 
           <Tabs.Panel value="delivery">

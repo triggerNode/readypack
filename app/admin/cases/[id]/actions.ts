@@ -6,8 +6,22 @@ import { requireAdmin } from '@/lib/auth'
 import { generateMagicLink } from '@/lib/auth/magic-link'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
-import { buildRequestInfoEmail } from '@/lib/email'
+import { buildRequestInfoEmail, buildRevisedDocReadyEmail } from '@/lib/email'
 import { enqueueGeneration } from '@/lib/documents/generation-queue'
+import { regenerateDocumentWithFeedback } from '@/lib/documents/regenerate-document'
+import type { DocumentType } from '@/types/database'
+
+const DOC_LABEL: Record<DocumentType, string> = {
+  ai_use_statement: 'AI Use Statement',
+  privacy_notice_addendum: 'Privacy Notice Addendum',
+  ai_risk_register: 'AI Risk Register',
+  dpia_lite: 'DPIA-Lite Assessment',
+  internal_ai_use_policy: 'Internal AI Use Policy',
+  customer_disclosure_snippets: 'Customer Disclosure Snippets',
+  vendor_ai_register: 'Vendor AI Register',
+  complaints_procedure_pack: 'Complaints Procedure Pack',
+  procurement_response_memo: 'Procurement Response Memo',
+}
 
 const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
 
@@ -56,6 +70,8 @@ async function writeAudit(input: {
     | 'override_decision'
     | 'approve_delivery'
     | 'info_resolved'
+    | 'document_revised'
+    | 'revision_released'
   targetType: 'order' | 'risk_flag' | 'submission' | 'info_request'
   targetId: string
   metadata?: Record<string, unknown>
@@ -543,6 +559,216 @@ export async function resolveInfoRequestAction(
     })
 
     refreshCaseUi(c.id)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unexpected error' }
+  }
+}
+
+// ─────────────────────────────────────────
+// 9. Regenerate a revision (per-document revision loop)
+// Re-runs generation for each document the customer asked to revise, applying
+// their feedback. Leaves each as a watermarked draft in 'in_revision'; the
+// admin then re-releases it. Moves the revision row to 'in_review'.
+// ─────────────────────────────────────────
+const RevisionActionSchema = z.object({
+  caseId: UUID,
+  revisionId: UUID,
+})
+
+async function loadRevision(
+  caseId: string,
+  revisionId: string,
+): Promise<
+  | { ok: true; orderId: string; documentTypes: DocumentType[]; feedback: string | null }
+  | { ok: false; error: string }
+> {
+  const { data: rev, error } = await supabaseAdmin
+    .from('case_revisions')
+    .select('id, order_id, document_types, feedback_text, kind')
+    .eq('id', revisionId)
+    .maybeSingle()
+  if (error) return { ok: false, error: error.message }
+  if (!rev) return { ok: false, error: 'Revision not found' }
+  if (rev.order_id !== caseId) return { ok: false, error: 'Revision does not belong to this case' }
+  if (rev.kind !== 'revision') return { ok: false, error: 'Not a revision request' }
+  const documentTypes = (Array.isArray(rev.document_types) ? rev.document_types : []) as DocumentType[]
+  return { ok: true, orderId: rev.order_id, documentTypes, feedback: rev.feedback_text }
+}
+
+export async function regenerateRevisionAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin()
+    const parsed = RevisionActionSchema.safeParse({
+      caseId: formData.get('caseId'),
+      revisionId: formData.get('revisionId'),
+    })
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    }
+
+    const rev = await loadRevision(parsed.data.caseId, parsed.data.revisionId)
+    if (!rev.ok) return { success: false, error: rev.error }
+    if (rev.documentTypes.length === 0) {
+      return { success: false, error: 'This revision has no documents to regenerate.' }
+    }
+
+    // Regenerate each requested document with the customer's feedback applied.
+    const failures: string[] = []
+    for (const docType of rev.documentTypes) {
+      const result = await regenerateDocumentWithFeedback({
+        orderId: rev.orderId,
+        documentType: docType,
+        feedback: rev.feedback ?? '',
+      })
+      if (!result.success) failures.push(`${DOC_LABEL[docType]}: ${result.error ?? 'failed'}`)
+    }
+
+    if (failures.length === rev.documentTypes.length) {
+      return { success: false, error: `Regeneration failed — ${failures.join('; ')}` }
+    }
+
+    await supabaseAdmin
+      .from('case_revisions')
+      .update({ status: 'in_review', updated_at: new Date().toISOString() })
+      .eq('id', parsed.data.revisionId)
+
+    await writeAudit({
+      adminUserId: admin.id,
+      actionType: 'document_revised',
+      targetType: 'order',
+      targetId: rev.orderId,
+      metadata: {
+        revision_id: parsed.data.revisionId,
+        document_types: rev.documentTypes,
+        partial_failures: failures.length > 0 ? failures : undefined,
+      },
+    })
+
+    refreshCaseUi(parsed.data.caseId)
+    return failures.length > 0
+      ? { success: false, error: `Some documents failed to regenerate: ${failures.join('; ')}` }
+      : { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unexpected error' }
+  }
+}
+
+// ─────────────────────────────────────────
+// 10. Re-release a revised document for customer review
+// Flips the revised document(s) back to a reviewable draft ('pending'),
+// emails the customer a fresh portal link, and marks the revision 'completed'.
+// If no documents remain in revision, eases the order back from 'escalated' to
+// 'qa_review' (awaiting customer review).
+// ─────────────────────────────────────────
+export async function releaseRevisionAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin()
+    const parsed = RevisionActionSchema.safeParse({
+      caseId: formData.get('caseId'),
+      revisionId: formData.get('revisionId'),
+    })
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    }
+
+    const rev = await loadRevision(parsed.data.caseId, parsed.data.revisionId)
+    if (!rev.ok) return { success: false, error: rev.error }
+    if (rev.documentTypes.length === 0) {
+      return { success: false, error: 'This revision has no documents to re-release.' }
+    }
+
+    const c = await loadCase(parsed.data.caseId)
+    if (!c) return { success: false, error: 'Case not found' }
+    if (!c.customer_email) {
+      return { success: false, error: 'Customer has no email on file — cannot notify them.' }
+    }
+    if (!c.submission_id) return { success: false, error: 'Case has no submission' }
+
+    // Flip the revised documents back to a reviewable draft.
+    const { error: docErr } = await supabaseAdmin
+      .from('generated_documents')
+      .update({ delivery_status: 'pending' })
+      .eq('submission_id', c.submission_id)
+      .in('document_type', rev.documentTypes)
+      .eq('delivery_status', 'in_revision')
+    if (docErr) return { success: false, error: `Could not re-release the document(s): ${docErr.message}` }
+
+    // Notify the customer with a fresh portal link.
+    const portalPath = `/portal/${rev.orderId}`
+    let magicLink: string
+    try {
+      magicLink = await generateMagicLink(c.customer_email, portalPath)
+    } catch (err) {
+      return {
+        success: false,
+        error: `Could not generate the portal link: ${err instanceof Error ? err.message : 'unknown error'}`,
+      }
+    }
+    const customerName = c.trading_name || c.company_name || null
+    const docTitle =
+      rev.documentTypes.length === 1
+        ? DOC_LABEL[rev.documentTypes[0]]
+        : `${rev.documentTypes.length} documents`
+    const sendResult = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [c.customer_email],
+      subject: 'Your revised ReadyPack document is ready to review',
+      html: buildRevisedDocReadyEmail({
+        magicLink,
+        customerName,
+        documentTitle: docTitle,
+        packReference: `RP-${rev.orderId.slice(0, 8).toUpperCase()}`,
+      }),
+    })
+    if (sendResult.error) {
+      return { success: false, error: `Email send failed: ${sendResult.error.message}` }
+    }
+
+    await supabaseAdmin
+      .from('case_revisions')
+      .update({
+        status: 'completed',
+        resolved_at: new Date().toISOString(),
+        resolved_by: admin.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', parsed.data.revisionId)
+
+    // If nothing else is in revision, ease the order back to 'qa_review'
+    // (awaiting the customer's review) from the 'escalated' state the revision
+    // request set. Don't touch an already-delivered order.
+    const { count: stillInRevision } = await supabaseAdmin
+      .from('generated_documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('submission_id', c.submission_id)
+      .eq('delivery_status', 'in_revision')
+    if ((stillInRevision ?? 0) === 0 && c.delivery_status === 'escalated') {
+      await supabaseAdmin
+        .from('orders')
+        .update({ delivery_status: 'qa_review', updated_at: new Date().toISOString() })
+        .eq('id', rev.orderId)
+    }
+
+    await writeAudit({
+      adminUserId: admin.id,
+      actionType: 'revision_released',
+      targetType: 'order',
+      targetId: rev.orderId,
+      metadata: {
+        revision_id: parsed.data.revisionId,
+        document_types: rev.documentTypes,
+        resend_id: sendResult.data?.id ?? null,
+      },
+    })
+
+    refreshCaseUi(parsed.data.caseId)
     return { success: true }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unexpected error' }

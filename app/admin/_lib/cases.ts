@@ -52,6 +52,28 @@ export type CaseRow = {
   status: CaseStatus
   open_flag_count: number
   critical_flag_count: number
+
+  // Per-document completion counts (per-doc approval / revision, migration 008).
+  docs_total: number
+  docs_final: number
+  docs_in_revision: number
+}
+
+/**
+ * Plain-English partial-completion summary for the admin list/header, e.g.
+ * "7 of 9 final · 1 in revision". Returns null when there are no documents
+ * yet (nothing partial to show). Pure.
+ */
+export function packCompletionSummary(
+  c: Pick<CaseRow, 'docs_total' | 'docs_final' | 'docs_in_revision'>,
+): string | null {
+  const total = c.docs_total ?? 0
+  if (total === 0) return null
+  const final = c.docs_final ?? 0
+  const inRevision = c.docs_in_revision ?? 0
+  const parts = [`${final} of ${total} final`]
+  if (inRevision > 0) parts.push(`${inRevision} in revision`)
+  return parts.join(' · ')
 }
 
 export type FilterTab = 'all' | 'needs_action' | 'flagged' | 'overdue'

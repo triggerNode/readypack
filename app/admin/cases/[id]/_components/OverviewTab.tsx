@@ -8,7 +8,7 @@ type DocumentRow = {
   id: string
   document_type: string
   qa_status: 'pending' | 'passed' | 'flagged' | 'failed'
-  delivery_status: 'pending' | 'approved' | 'delivered' | 'failed'
+  delivery_status: 'pending' | 'approved' | 'in_revision' | 'delivered' | 'failed'
   generated_at: string | null
 }
 
