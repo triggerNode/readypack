@@ -302,7 +302,7 @@ export function PackProgressClient({
               </div>
             ) : null}
 
-            {status.state === 'review' ? (
+            {status.state === 'review' && !isPartial ? (
               <div className={`${styles.callout} ${styles.calloutReview}`}>
                 <span className={styles.calloutIco}>
                   <Users width={22} height={22} aria-hidden />
@@ -334,7 +334,7 @@ export function PackProgressClient({
               </div>
             ) : null}
 
-            {isPartial ? (
+            {isPartial && status.state === 'review' ? (
               <div className={`${styles.callout} ${styles.calloutPartial}`}>
                 <span className={styles.calloutIco}>
                   <ShieldCheck width={22} height={22} aria-hidden />

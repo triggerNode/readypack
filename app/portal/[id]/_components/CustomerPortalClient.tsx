@@ -833,8 +833,11 @@ export function CustomerPortalClient({
         </div>
       ) : null}
 
-      {/* ── Sticky action bar — review: approve / request changes ── */}
-      {reviewActive && !allFinal ? (
+      {/* ── Sticky action bar — review: approve / request changes ──
+          Only when there are documents left to act on (drafts/revised). When
+          everything is Final or In-revision there's nothing to approve, so the
+          bar is hidden rather than showing a disabled "Approve remaining 0". */}
+      {reviewActive && awaitingCount > 0 ? (
         <div className={styles.actionBar}>
           <div className={styles.container}>
             <div className={styles.actionBarInner}>
