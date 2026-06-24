@@ -75,7 +75,12 @@ export async function runQaChecks(
   try {
     const response = await anthropic.messages.create({
       model: QA_MODEL,
-      max_tokens: 4096,
+      // A premium 9-document pack produces a QA report larger than the old 4096
+      // cap, which truncated mid-array and yielded invalid JSON the tolerant
+      // parser cannot recover (the "QA layer failed: Expected ',' or ']'" crash).
+      // The cap only bounds the ceiling — we are billed for tokens actually
+      // produced — so a generous ceiling is free insurance against truncation.
+      max_tokens: 12000,
       messages: [{ role: 'user', content: prompt }],
     })
 
@@ -85,6 +90,10 @@ export async function runQaChecks(
     const textContent = response.content.find((c) => c.type === 'text')
     if (!textContent || textContent.type !== 'text') {
       throw new Error('No text content in QA response')
+    }
+    // Fail loudly on truncation rather than handing the parser a cut-off array.
+    if (response.stop_reason === 'max_tokens') {
+      throw new Error('QA report truncated at the 12000-token cap')
     }
 
     // Use the shared tolerant parser (strips code fences + recovers from
