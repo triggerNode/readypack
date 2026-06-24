@@ -251,6 +251,22 @@ const s = StyleSheet.create({
     color: C.body,
     marginVertical: 5,
   },
+  // Procurement Q&A bank
+  qaItem: {
+    marginBottom: 9,
+  },
+  qaQuestion: {
+    fontSize: 9.5,
+    fontFamily: 'Helvetica-Bold',
+    color: C.heading,
+    lineHeight: 1.4,
+    marginBottom: 2,
+  },
+  qaAnswer: {
+    fontSize: 9,
+    lineHeight: 1.5,
+    color: C.body,
+  },
   // Tables
   table: {
     borderWidth: 1,
@@ -703,8 +719,6 @@ function PdfDocumentPage({
   documentTitle,
   companyName,
   isFirstPage = false,
-  pageNumber,
-  totalPages,
   showWatermark,
   logoUrl,
   children,
@@ -733,9 +747,10 @@ function PdfDocumentPage({
       </View>
       <View style={s.footer} fixed>
         <Text>Confidential — Prepared for {companyName}</Text>
-        <Text>
-          Page {pageNumber} of {totalPages}
-        </Text>
+        <Text
+          fixed
+          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+        />
       </View>
       <Text style={s.aiActDisclosure} fixed>
         This document was securely generated utilizing the ReadyPack compliance
@@ -1489,6 +1504,24 @@ function renderProcurementMemo(c: ProcurementMemoContent, opts: RenderOpts) {
       }),
     )
 
+  // Premium Q&A bank (ST2-5) — render only when present (non-premium memos omit it).
+  const qaBank = Array.isArray(c.procurement_qa_bank) ? c.procurement_qa_bank : []
+  const hasQaBank = qaBank.length > 0
+
+  // The generation prompt seeds two contact rows with literal "[security email]" /
+  // "[sales email]" placeholders the model often leaves verbatim. Fall back to the
+  // data-protection contact (the one real email in the table) so a paid deliverable
+  // never ships visible [bracketed] stubs. Sanitises existing content_json too.
+  const fallbackContact =
+    c.contacts_table.rows
+      .map((r) => String(r[1] ?? ''))
+      .find((v) => v.includes('@')) || 'Available on request'
+  const sanitisedContactRows: (string | React.ReactNode)[][] = c.contacts_table.rows.map((row) =>
+    row.map((cell) =>
+      typeof cell === 'string' && /^\[.*\]$/.test(cell.trim()) ? fallbackContact : cell,
+    ),
+  )
+
   return (
     <Document>
       {makePage(opts, 'procurement_response_memo', 1, true, (
@@ -1515,18 +1548,47 @@ function renderProcurementMemo(c: ProcurementMemoContent, opts: RenderOpts) {
       {makePage(opts, 'procurement_response_memo', 3, false, (
         <>
           <H1 number="4.">Points of Contact</H1>
-          <PdfTable columns={c.contacts_table.columns} rows={c.contacts_table.rows} />
+          <PdfTable columns={c.contacts_table.columns} rows={sanitisedContactRows} />
           <H1 number="5.">Review Cycle</H1>
           <P>{c.review_cycle_text}</P>
-          <DocumentControl
-            documentTitle={DOCUMENT_TYPE_TITLES.procurement_response_memo}
-            documentNumber={DOCUMENT_TYPE_NUMBERS.procurement_response_memo}
-            companyName={opts.companyName}
-            preparedDate={c.prepared_date}
-            reviewDate={c.review_date}
-          />
+          {!hasQaBank && (
+            <DocumentControl
+              documentTitle={DOCUMENT_TYPE_TITLES.procurement_response_memo}
+              documentNumber={DOCUMENT_TYPE_NUMBERS.procurement_response_memo}
+              companyName={opts.companyName}
+              preparedDate={c.prepared_date}
+              reviewDate={c.review_date}
+            />
+          )}
         </>
       ))}
+      {hasQaBank &&
+        makePage(opts, 'procurement_response_memo', 4, false, (
+          <>
+            <H1 number="6.">Enterprise Compliance Q&amp;A</H1>
+            <P>
+              Structured responses to the questions most frequently raised in enterprise
+              vendor due-diligence and procurement questionnaires, tailored to{' '}
+              {opts.companyName}&apos;s AI tools, vendors, jurisdictions, and data-handling
+              controls.
+            </P>
+            {qaBank.map((qa, i) => (
+              <View key={i} style={s.qaItem} wrap={false}>
+                <Text style={s.qaQuestion}>
+                  Q{i + 1}. {qa.question}
+                </Text>
+                <Text style={s.qaAnswer}>{qa.answer}</Text>
+              </View>
+            ))}
+            <DocumentControl
+              documentTitle={DOCUMENT_TYPE_TITLES.procurement_response_memo}
+              documentNumber={DOCUMENT_TYPE_NUMBERS.procurement_response_memo}
+              companyName={opts.companyName}
+              preparedDate={c.prepared_date}
+              reviewDate={c.review_date}
+            />
+          </>
+        ))}
     </Document>
   )
 }

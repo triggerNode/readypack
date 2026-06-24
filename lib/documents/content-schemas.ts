@@ -120,6 +120,10 @@ export interface ProcurementMemoContent extends DocumentContent {
   documentation_index_table: DocumentTable
   contacts_table: DocumentTable
   review_cycle_text: string
+  // Premium tiers (Procurement-Ready / Adviser): the 40-question enterprise
+  // due-diligence Q&A bank, generated in grouped sub-calls (ST2-5). Optional —
+  // non-premium memos omit it.
+  procurement_qa_bank?: { question: string; answer: string }[]
 }
 
 export type SpecificDocumentContent =
