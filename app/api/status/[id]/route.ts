@@ -51,8 +51,17 @@ export async function GET(
   let jobStatus: string | null = null
   let jobStartedAt: string | null = null
 
+  // Has the pack been released to the customer for review? A delivery email row
+  // is written by the admin "Release for customer review" action. Once present,
+  // the progress screen reports the customer's own review rather than internal
+  // QA (no "in manual review while I'm approving" contradiction). Folded into
+  // the parallel batch below so it adds no extra serial round-trip. Release
+  // always implies a submission (it requires generated docs), so released stays
+  // false when there's no submission.
+  let released = false
+
   if (submission) {
-    const [docsResult, infoResult, jobResult] = await Promise.all([
+    const [docsResult, infoResult, jobResult, commsResult] = await Promise.all([
       // Fetch the per-document delivery states once and tally them locally —
       // cheaper than three separate head-count round-trips.
       supabaseAdmin
@@ -71,6 +80,11 @@ export async function GET(
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabaseAdmin
+        .from('customer_communications')
+        .select('id', { count: 'exact', head: true })
+        .eq('order_id', orderId)
+        .eq('email_type', 'delivery'),
     ])
     const docRows = (docsResult.data ?? []) as Array<{ delivery_status: string }>
     docsReady = docRows.length
@@ -79,6 +93,7 @@ export async function GET(
     openInfoRequests = infoResult.count ?? 0
     jobStatus = (jobResult.data?.status as string | undefined) ?? null
     jobStartedAt = (jobResult.data?.started_at as string | undefined) ?? null
+    released = (commsResult.count ?? 0) > 0
   }
 
   const status = computePackState({
@@ -89,6 +104,7 @@ export async function GET(
     docsFinal,
     docsInRevision,
     openInfoRequests,
+    released,
   })
 
   return NextResponse.json(status, { headers: { 'Cache-Control': 'no-store' } })

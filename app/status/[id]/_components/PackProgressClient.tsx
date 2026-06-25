@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   Check,
+  ClipboardCheck,
   Clock,
   Info,
   Loader,
   Lock,
   MessageSquareText,
+  PackageCheck,
   Pause,
   ShieldCheck,
   Users,
@@ -26,9 +28,10 @@ interface Props {
 }
 
 // Per-state presentation derived from the live status. Mirrors the design's
-// STATES map (design/PackProgress.html) but the current node + micro line are
-// driven by the real phaseIndex / docsReady so the stepper tracks generation.
-type NodeMode = 'active' | 'paused' | 'held' | 'done'
+// STATES map (design/PackProgress-Partial.html) but the current node + micro
+// line are driven by the real phaseIndex / docsReady so the stepper tracks
+// generation. `partial` renders a fractional ring on the final node.
+type NodeMode = 'active' | 'paused' | 'held' | 'done' | 'partial'
 
 interface StateView {
   stateClass: string
@@ -38,6 +41,8 @@ interface StateView {
   pillLive: boolean
   headline: string
   sub: string
+  /** Relabels the final stepper node post-release ("Your review" vs "Ready"). */
+  finalLabel?: string
 }
 
 const STATE_VIEW: Record<PackState, StateView> = {
@@ -86,19 +91,53 @@ const STATE_VIEW: Record<PackState, StateView> = {
     headline: 'We’re preparing your compliance pack',
     sub: 'Your documents are still being assembled. Thank you for your patience.',
   },
+  released: {
+    stateClass: 'stateReleased',
+    mode: 'active',
+    pillText: 'Ready to review',
+    pillClass: 'pillReady',
+    pillLive: true,
+    headline: 'Your pack is ready to review',
+    sub: 'Review and approve your documents whenever you’re ready.',
+    finalLabel: 'Your review',
+  },
+  partial: {
+    stateClass: 'statePartial',
+    mode: 'partial',
+    pillText: 'Almost there',
+    pillClass: 'pillNeutral',
+    pillLive: true,
+    headline: 'You’re almost there',
+    // sub is overridden per-revision-count at render time.
+    sub: 'Your approved documents are unlocked.',
+    finalLabel: 'Your review',
+  },
+  complete: {
+    stateClass: 'stateComplete',
+    mode: 'done',
+    pillText: 'Pack complete',
+    pillClass: 'pillReady',
+    pillLive: false,
+    headline: 'Your full compliance pack is complete',
+    sub: 'Every document is approved and un-watermarked. Download your pack whenever you’re ready.',
+    finalLabel: 'Your review',
+  },
 }
 
-// Poll cadence: fast while actively generating, slow once settled, stop on ready.
+// Poll cadence: fast while actively generating, slow once settled, stop at the
+// terminal states (ready pre-release / complete). Keep polling once released so
+// the screen reflects a revision being released back ("revising → ready").
 function pollDelay(state: PackState): number | null {
-  if (state === 'ready') return null
+  if (state === 'ready' || state === 'complete') return null
   if (state === 'progress') return 4000
   return 15000
 }
 
-function BulletInner({ mode }: { mode: NodeMode | 'todo' }) {
+function BulletInner({ mode, fracText }: { mode: NodeMode | 'todo'; fracText?: string }) {
   if (mode === 'done') return <Check width={22} height={22} aria-hidden />
   if (mode === 'paused') return <Pause width={18} height={18} aria-hidden />
   if (mode === 'held') return <Loader width={20} height={20} aria-hidden />
+  if (mode === 'partial') return <span className={styles.frac}>{fracText}</span>
   if (mode === 'active') return <span className={styles.dot} />
   return <span className={styles.dotSm} />
 }
@@ -165,7 +204,18 @@ export function PackProgressClient({
   const revN = status.docsInRevision ?? 0
   const awaitN = status.docsAwaitingReview ?? 0
   const showCounts = finalN > 0 || revN > 0
-  const isPartial = finalN > 0 && finalN < status.docsTotal && status.state !== 'ready'
+  // The final stepper node reads "Your review" once released, "Ready" before.
+  const finalLabel = view.finalLabel ?? PACK_PHASES[PACK_PHASES.length - 1]
+  // Conic-ring fraction on the partial node (e.g. 8/9 approved).
+  const nodeFrac = status.docsTotal > 0 ? finalN / status.docsTotal : 1
+  const fracText = `${finalN}/${status.docsTotal}`
+
+  // Calm, count-aware reassurance for the partial state — never "manual review".
+  const revisingText =
+    revN > 0
+      ? `We’re revising ${revN} ${revN === 1 ? 'document' : 'documents'} for you — we’ll email you when ${revN === 1 ? 'it’s' : 'they’re'} ready to approve.`
+      : 'Your approved documents are unlocked. Keep approving the rest whenever you’re ready.'
+  const subText = status.state === 'partial' ? revisingText : view.sub
 
   return (
     <div className={`${styles.shell} ${styles[view.stateClass]}`}>
@@ -205,14 +255,14 @@ export function PackProgressClient({
             </span>
 
             <h1 className={styles.h1}>
-              {status.state === 'ready' ? (
+              {status.state === 'ready' || status.state === 'complete' ? (
                 <span className={styles.h1Check}>
                   <Check width={22} height={22} aria-hidden />
                 </span>
               ) : null}
               <span>{view.headline}</span>
             </h1>
-            <p className={styles.sub}>{view.sub}</p>
+            <p className={styles.sub}>{subText}</p>
 
             {/* Per-document counts (partial / complete) */}
             {showCounts ? (
@@ -229,7 +279,7 @@ export function PackProgressClient({
                     {revN} in revision
                   </span>
                 ) : null}
-                {awaitN > 0 ? (
+                {awaitN > 0 || status.state === 'partial' ? (
                   <span className={`${styles.countsSeg} ${styles.countsAwait}`}>
                     <span className={styles.cdot} />
                     {awaitN} awaiting your review
@@ -240,7 +290,10 @@ export function PackProgressClient({
 
             {/* Stepper card */}
             <div className={styles.stepperCard}>
-              <div className={styles.stepper} style={{ '--fill': fill } as React.CSSProperties}>
+              <div
+                className={styles.stepper}
+                style={{ '--fill': fill, '--node-frac': nodeFrac } as React.CSSProperties}
+              >
                 <div className={styles.track}>
                   <div className={styles.trackFill} />
                 </div>
@@ -248,6 +301,7 @@ export function PackProgressClient({
                   {PACK_PHASES.map((phase, i) => {
                     const isDone = i < current
                     const isCurrent = i === current
+                    const isLast = i === PACK_PHASES.length - 1
                     const nodeMode: NodeMode | 'todo' = isCurrent ? view.mode : 'todo'
                     const nodeClass = [
                       styles.node,
@@ -260,9 +314,9 @@ export function PackProgressClient({
                     return (
                       <div key={phase} className={nodeClass}>
                         <span className={styles.bullet}>
-                          <BulletInner mode={isDone ? 'done' : nodeMode} />
+                          <BulletInner mode={isDone ? 'done' : nodeMode} fracText={fracText} />
                         </span>
-                        <span className={styles.nodeLabel}>{phase}</span>
+                        <span className={styles.nodeLabel}>{isLast ? finalLabel : phase}</span>
                         {isCurrent && showMicro ? (
                           <span className={styles.nodeMicro}>{microText}</span>
                         ) : null}
@@ -302,7 +356,7 @@ export function PackProgressClient({
               </div>
             ) : null}
 
-            {status.state === 'review' && !isPartial ? (
+            {status.state === 'review' ? (
               <div className={`${styles.callout} ${styles.calloutReview}`}>
                 <span className={styles.calloutIco}>
                   <Users width={22} height={22} aria-hidden />
@@ -334,29 +388,6 @@ export function PackProgressClient({
               </div>
             ) : null}
 
-            {isPartial && status.state === 'review' ? (
-              <div className={`${styles.callout} ${styles.calloutPartial}`}>
-                <span className={styles.calloutIco}>
-                  <ShieldCheck width={22} height={22} aria-hidden />
-                </span>
-                <div className={styles.calloutBody}>
-                  <p className={styles.calloutTitle}>Your approved documents are unlocked.</p>
-                  <p className={styles.calloutText}>
-                    Download the approved documents now and keep approving the rest at your own pace.
-                    We’ll email you when any document you’ve sent back is ready to approve.
-                  </p>
-                  <div className={styles.calloutCta}>
-                    <Link
-                      className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`}
-                      href={`/portal/${orderId}`}
-                    >
-                      Review your pack →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
             {status.state === 'ready' ? (
               <div className={`${styles.callout} ${styles.calloutReady}`}>
                 <span className={styles.calloutIco}>
@@ -371,6 +402,72 @@ export function PackProgressClient({
                   <div className={styles.calloutCta}>
                     <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`} href={`/portal/${orderId}`}>
                       Review &amp; download your pack →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {status.state === 'released' ? (
+              <div className={`${styles.callout} ${styles.calloutReleased}`}>
+                <span className={styles.calloutIco}>
+                  <ClipboardCheck width={22} height={22} aria-hidden />
+                </span>
+                <div className={styles.calloutBody}>
+                  <p className={styles.calloutTitle}>Your documents are ready for you to review.</p>
+                  <p className={styles.calloutText}>
+                    Go through each one and approve the documents you’re happy with — they unlock for
+                    download straight away. There’s no rush; you can pick up where you left off any
+                    time.
+                  </p>
+                  <div className={styles.calloutCta}>
+                    <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`} href={`/portal/${orderId}`}>
+                      Review your pack →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {status.state === 'partial' ? (
+              <div className={`${styles.callout} ${styles.calloutPartial}`}>
+                <span className={styles.calloutIco}>
+                  <PackageCheck width={22} height={22} aria-hidden />
+                </span>
+                <div className={styles.calloutBody}>
+                  <p className={styles.calloutTitle}>
+                    {revN > 0
+                      ? `We’re revising ${revN} ${revN === 1 ? 'document' : 'documents'} for you.`
+                      : 'Your approved documents are unlocked.'}
+                  </p>
+                  <p className={styles.calloutText}>
+                    {revN > 0
+                      ? `We’ll email you the moment ${revN === 1 ? "it's" : "they're"} ready to approve — there’s nothing you need to do for ${revN === 1 ? 'it' : 'them'}. In the meantime, your approved documents are unlocked, so you can review or download them whenever you like.`
+                      : 'Download the approved documents now and keep approving the rest at your own pace — there’s no rush.'}
+                  </p>
+                  <div className={styles.calloutCta}>
+                    <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`} href={`/portal/${orderId}`}>
+                      Review your pack →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {status.state === 'complete' ? (
+              <div className={`${styles.callout} ${styles.calloutComplete}`}>
+                <span className={styles.calloutIco}>
+                  <ShieldCheck width={22} height={22} aria-hidden />
+                </span>
+                <div className={styles.calloutBody}>
+                  <p className={styles.calloutTitle}>Your full compliance pack is complete.</p>
+                  <p className={styles.calloutText}>
+                    All nine documents are approved and un-watermarked. Download them individually or
+                    as a single archive whenever you’re ready.
+                  </p>
+                  <div className={styles.calloutCta}>
+                    <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`} href={`/portal/${orderId}`}>
+                      Download your pack →
                     </Link>
                   </div>
                 </div>

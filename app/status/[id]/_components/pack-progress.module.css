@@ -422,3 +422,41 @@
 .countsAwait .cdot { background: #facc15; }
 .calloutPartial { background: var(--bg-secondary); border: 1px solid var(--border-subtle); }
 .calloutPartial .calloutIco { background: var(--accent-muted); border: 1px solid rgba(22,163,74,0.28); color: var(--accent-primary); }
+
+/* ===== Post-release states (design: PackProgress-Partial) ================ */
+/* Wrapper state classes — the inert custom property keeps the class in the CSS
+   Modules export (empty rules get dropped by the minifier) so
+   styles[stateClass] resolves; no extra chrome needed beyond the shared
+   callout/counts treatment above. */
+.stateReleased { --phase: review; }
+.statePartial { --phase: review; }
+.stateComplete { --phase: review; }
+
+/* current — partial (some approved, some still moving — half-filled ring) */
+.nodeCurrent.modePartial .bullet {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: conic-gradient(
+    var(--accent-primary) 0turn calc(var(--node-frac, 0.5) * 1turn),
+    var(--accent-muted) calc(var(--node-frac, 0.5) * 1turn) 1turn
+  );
+}
+.nodeCurrent.modePartial .frac {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-accent);
+}
+
+.calloutReleased { background: var(--accent-muted); border: 1px solid rgba(22, 163, 74, 0.28); }
+.calloutReleased .calloutIco { background: rgba(22, 163, 74, 0.16); border: 1px solid rgba(22, 163, 74, 0.3); color: var(--accent-primary); }
+.calloutComplete { background: var(--accent-muted); border: 1px solid rgba(22, 163, 74, 0.34); }
+.calloutComplete .calloutIco { background: rgba(22, 163, 74, 0.18); border: 1px solid rgba(22, 163, 74, 0.34); color: var(--accent-primary); }

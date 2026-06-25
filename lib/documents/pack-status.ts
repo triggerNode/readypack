@@ -1,12 +1,27 @@
 // lib/documents/pack-status.ts
 // Maps an order's generation/delivery state onto the customer-facing Pack
-// Progress screen states (design: design/PackProgress.html). Pure and
+// Progress screen states (design: design/PackProgress-Partial.html). Pure and
 // dependency-free so it can be unit-tested and reused by the status API.
 //
 // Phases (the 5-step stepper): 0 Intake received · 1 Reviewing your answers ·
-// 2 Drafting your documents · 3 Quality assurance · 4 Ready.
+// 2 Drafting your documents · 3 Quality assurance · 4 Ready / Your review.
+//
+// Pre-release states describe OUR work: progress · action · review · delayed ·
+// ready. Once the pack has been released to the customer (a delivery email was
+// sent), the screen describes the CUSTOMER'S own review instead of internal QA:
+// released (nothing approved yet) · partial (some approved / in revision) ·
+// complete (all nine final). This kills the "in manual review while I'm
+// approving" contradiction the paid e2e surfaced (DECISIONS-LOG 2026-06-24).
 
-export type PackState = 'progress' | 'action' | 'review' | 'ready' | 'delayed'
+export type PackState =
+  | 'progress'
+  | 'action'
+  | 'review'
+  | 'ready'
+  | 'delayed'
+  | 'released'
+  | 'partial'
+  | 'complete'
 
 export const PACK_PHASES = [
   'Intake received',
@@ -32,6 +47,10 @@ export interface PackStatusInputs {
    *  callers keep working; default to 0. */
   docsFinal?: number
   docsInRevision?: number
+  /** True once the pack has been released to the customer for review (a
+   *  delivery email was sent). Flips the screen from internal-QA copy to the
+   *  customer's-own-review copy. Optional → defaults false. */
+  released?: boolean
   now?: number
 }
 
@@ -58,6 +77,7 @@ export function computePackState(input: PackStatusInputs): PackStatus {
   const docsAwaitingReview = Math.max(0, docsReady - docsFinal - docsInRevision)
   const base = { docsReady, docsTotal: DOC_TOTAL, docsFinal, docsInRevision, docsAwaitingReview }
   const now = input.now ?? Date.now()
+  const released = input.released ?? false
 
   // 1. Needs the customer to supply information — highest priority, drives the
   //    portal remediation flow. Stepper pauses at "Reviewing your answers".
@@ -65,22 +85,43 @@ export function computePackState(input: PackStatusInputs): PackStatus {
     return { state: 'action', phaseIndex: 1, ...base }
   }
 
-  // 2. Ready for the customer: pack approved/delivered → review & download.
-  if (input.deliveryStatus === 'approved' || input.deliveryStatus === 'delivered') {
+  // 2. Pack fully complete — every document approved & un-watermarked. Reached
+  //    by the order roll-up to `delivered`, or by counting all docs final. Both
+  //    mean "all done" — which is only ever reachable after release — so this is
+  //    the terminal celebratory state independent of the `released` flag.
+  if (input.deliveryStatus === 'delivered' || docsFinal >= DOC_TOTAL) {
+    return { state: 'complete', phaseIndex: 4, ...base }
+  }
+
+  // 3. Released to the customer — describe THEIR review, never internal QA.
+  //    The QA step reads as done; the final node becomes "Your review".
+  if (released) {
+    // Some documents approved or in revision (but not all) → partial progress.
+    if (docsFinal > 0 || docsInRevision > 0) {
+      return { state: 'partial', phaseIndex: 4, ...base }
+    }
+    // Released but nothing acted on yet → awaiting your review.
+    return { state: 'released', phaseIndex: 4, ...base }
+  }
+
+  // 4. Not released, but flagged approved/delivered (vestigial pre-release
+  //    edge from the retired admin-approves model) → ready to review.
+  if (input.deliveryStatus === 'approved') {
     return { state: 'ready', phaseIndex: 4, ...base }
   }
 
-  // 3. Generation failed outright.
+  // 5. Generation failed outright.
   if (input.deliveryStatus === 'failed' || input.jobStatus === 'failed') {
     return { state: 'delayed', phaseIndex: 2, ...base }
   }
 
-  // 4. With our compliance team (manual review / escalated, generated).
+  // 6. With our compliance team — genuine pre-release QA (manual review /
+  //    escalated, generated, NOT yet released to the customer).
   if (input.deliveryStatus === 'escalated' || input.deliveryStatus === 'qa_review') {
     return { state: 'review', phaseIndex: 3, ...base }
   }
 
-  // 5. Generating / queued.
+  // 7. Generating / queued.
   if (
     input.deliveryStatus === 'generating' ||
     input.jobStatus === 'running' ||
@@ -98,6 +139,6 @@ export function computePackState(input: PackStatusInputs): PackStatus {
     return { state: 'progress', phaseIndex: docsReady > 0 ? 2 : 1, ...base }
   }
 
-  // 6. Default early state (pending, no job yet).
+  // 8. Default early state (pending, no job yet).
   return { state: 'progress', phaseIndex: 0, ...base }
 }

@@ -67,8 +67,14 @@ export default async function PackProgressPage({ params }: { params: Params }) {
   let jobStatus: string | null = null
   let jobStartedAt: string | null = null
 
+  // Released-to-customer signal (a delivery email was sent) — flips the screen
+  // from internal-QA copy to the customer's-own-review copy. Mirrors the status
+  // API so the first server paint matches subsequent polls. Folded into the
+  // parallel batch (release always implies a submission).
+  let released = false
+
   if (submission) {
-    const [docsResult, infoResult, jobResult] = await Promise.all([
+    const [docsResult, infoResult, jobResult, commsResult] = await Promise.all([
       supabaseAdmin
         .from('generated_documents')
         .select('delivery_status')
@@ -85,6 +91,11 @@ export default async function PackProgressPage({ params }: { params: Params }) {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabaseAdmin
+        .from('customer_communications')
+        .select('id', { count: 'exact', head: true })
+        .eq('order_id', orderId)
+        .eq('email_type', 'delivery'),
     ])
     const docRows = (docsResult.data ?? []) as Array<{ delivery_status: string }>
     docsReady = docRows.length
@@ -93,6 +104,7 @@ export default async function PackProgressPage({ params }: { params: Params }) {
     openInfoRequests = infoResult.count ?? 0
     jobStatus = (jobResult.data?.status as string | undefined) ?? null
     jobStartedAt = (jobResult.data?.started_at as string | undefined) ?? null
+    released = (commsResult.count ?? 0) > 0
   }
 
   const initialStatus = computePackState({
@@ -103,6 +115,7 @@ export default async function PackProgressPage({ params }: { params: Params }) {
     docsFinal,
     docsInRevision,
     openInfoRequests,
+    released,
   })
 
   const customerName =
