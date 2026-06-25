@@ -11,17 +11,21 @@ type Props = {
   sectionCompletion: SectionCompletion
 }
 
-const SECTION_ORDER: ReadonlyArray<{ key: string; num: string; title: string }> = [
-  { key: 'section_1', num: '01', title: 'Your business' },
-  { key: 'section_2', num: '02', title: 'Markets & customers' },
-  { key: 'section_3', num: '03', title: 'AI tools' },
-  { key: 'section_4', num: '04', title: 'How AI is used' },
-  { key: 'section_5', num: '05', title: 'AI & people' },
-  { key: 'section_6', num: '06', title: 'Data & vendors' },
-  { key: 'section_7', num: '07', title: 'Existing documents' },
-  { key: 'section_8', num: '08', title: 'Complaints & incidents' },
-  { key: 'section_9', num: '09', title: 'Procurement' },
-  { key: 'section_10', num: '10', title: 'Governance & sign-off' },
+// `key` is a stable React/accordion id; `dataKey` is how the answer is actually
+// stored in raw_answers / section_completion. The intake saves these keyed by
+// the bare section number ("1".."10"), not "section_1" — so we look up by
+// dataKey (with a section_N fallback for any older submissions).
+const SECTION_ORDER: ReadonlyArray<{ key: string; dataKey: string; num: string; title: string }> = [
+  { key: 'section_1', dataKey: '1', num: '01', title: 'Your business' },
+  { key: 'section_2', dataKey: '2', num: '02', title: 'Markets & customers' },
+  { key: 'section_3', dataKey: '3', num: '03', title: 'AI tools' },
+  { key: 'section_4', dataKey: '4', num: '04', title: 'How AI is used' },
+  { key: 'section_5', dataKey: '5', num: '05', title: 'AI & people' },
+  { key: 'section_6', dataKey: '6', num: '06', title: 'Data & vendors' },
+  { key: 'section_7', dataKey: '7', num: '07', title: 'Existing documents' },
+  { key: 'section_8', dataKey: '8', num: '08', title: 'Complaints & incidents' },
+  { key: 'section_9', dataKey: '9', num: '09', title: 'Procurement' },
+  { key: 'section_10', dataKey: '10', num: '10', title: 'Governance & sign-off' },
 ]
 
 /** Heuristic: render a primitive answer value as a readable string. */
@@ -109,8 +113,11 @@ export function IntakeAnswersTab({ rawAnswers, sectionCompletion }: Props) {
       ) : (
         <div className={styles.intakeList}>
           {SECTION_ORDER.map(section => {
-            const sectionData = asObject((rawAnswers as Record<string, unknown>)[section.key])
-            const completed = sectionCompletion ? sectionCompletion[section.key] === true : false
+            const raw = rawAnswers as Record<string, unknown>
+            const sectionData = asObject(raw[section.dataKey] ?? raw[section.key])
+            const completed = sectionCompletion
+              ? sectionCompletion[section.dataKey] === true || sectionCompletion[section.key] === true
+              : false
             const isOpen = openSet.has(section.key)
             const entries = sectionData ? Object.entries(sectionData) : []
             const hasContent = entries.length > 0
