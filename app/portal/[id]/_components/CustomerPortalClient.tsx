@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import {
   Activity,
   ArrowRight,
@@ -119,8 +120,16 @@ export function CustomerPortalClient({
   infoRequests,
 }: Props) {
   const router = useRouter()
-  const prefersReduced =
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  // Read prefers-reduced-motion after mount so SSR and first client render agree
+  // (false on both → no hydration mismatch), then track live changes.
+  const [prefersReduced, setPrefersReduced] = useState(false)
+  useEffect(() => {
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setPrefersReduced(mql.matches)
+    const onChange = () => setPrefersReduced(mql.matches)
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [])
 
   // ── Per-document status, with optimistic overrides cleared on fresh data ──
   const [overrides, setOverrides] = useState<Map<DocumentType, DocStatus>>(new Map())
@@ -153,7 +162,10 @@ export function CustomerPortalClient({
   // ── Finalising overlay (whole-pack / approve-remaining) ──────────
   const [overlayShow, setOverlayShow] = useState(false)
   const [activeStep, setActiveStep] = useState(-1)
-  const [justApproved, setJustApproved] = useState<DocumentType | null>(null)
+  // Per-document finalising micro-moment: cards mid-finalise show the in-card
+  // "Finalising your document" layer; once Final they briefly show a download nudge.
+  const [finalising, setFinalising] = useState<Set<DocumentType>>(new Set())
+  const [justFinal, setJustFinal] = useState<Set<DocumentType>>(new Set())
   const [errorBanner, setErrorBanner] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -188,6 +200,12 @@ export function CustomerPortalClient({
   const allFinal = total > 0 && finalCount === total
   const finalDocs = documents.filter((d) => statusOf(d) === 'final')
 
+  // "You're all set for now" closure: the customer has nothing left to act on —
+  // every document is Final or In-revision, none awaiting review, no open
+  // info-requests — but the pack isn't complete because something's being revised.
+  const showAllSet =
+    reviewActive && !allFinal && awaitingCount === 0 && revisionCount > 0
+
   const [flowOpen, setFlowOpen] = useState(false)
   const [currentReqId, setCurrentReqId] = useState<string | null>(null)
   const [flowSelections, setFlowSelections] = useState<string[]>([])
@@ -220,32 +238,66 @@ export function CustomerPortalClient({
   }
   const deselectAll = () => setSelected(new Set())
 
-  // ── Approve a single document ────────────────────────────────────
+  type DocTypeSetter = Dispatch<SetStateAction<Set<DocumentType>>>
+  const addTo = (setter: DocTypeSetter, docType: DocumentType) =>
+    setter((prev) => new Set(prev).add(docType))
+  const removeFrom = (setter: DocTypeSetter, docType: DocumentType) =>
+    setter((prev) => {
+      const next = new Set(prev)
+      next.delete(docType)
+      return next
+    })
+
+  // ── Approve a single document — with the finalising micro-moment ──
+  // The in-card "Finalising your document — removing the draft watermark" layer
+  // shows while the server re-renders the un-watermarked PDF (real work), then
+  // resolves to Final with a one-off download nudge. Reduced motion → instant swap.
+  // Note: the finalising card state is driven by the `finalising` Set, NOT the
+  // transition's `pending` (which clears when the action resolves, before the
+  // min-beat setTimeout fires).
+  const resolveFinal = (docType: DocumentType) => {
+    setOverride([docType], 'final')
+    // One-off download nudge that self-expires (it must not persist for the
+    // session — the old justApproved flash auto-cleared the same way).
+    addTo(setJustFinal, docType)
+    setTimeout(() => removeFrom(setJustFinal, docType), 6000)
+    router.refresh()
+  }
   const approveOne = (docType: DocumentType) => {
     setErrorBanner(null)
-    setOverride([docType], 'final')
     setSelected((prev) => {
       const next = new Set(prev)
       next.delete(docType)
       return next
     })
-    if (!prefersReduced) {
-      setJustApproved(docType)
-      setTimeout(() => setJustApproved(null), 900)
+
+    if (prefersReduced) {
+      startTransition(async () => {
+        const result = await approveDocumentAction({ orderId, documentType: docType })
+        if (!result.success) {
+          setErrorBanner(result.error)
+          return
+        }
+        resolveFinal(docType)
+      })
+      return
     }
+
+    // Show the finalising layer for the duration of the real server work, with a
+    // minimum premium beat so it never just flickers.
+    const startedAt = Date.now()
+    addTo(setFinalising, docType)
     startTransition(async () => {
       const result = await approveDocumentAction({ orderId, documentType: docType })
-      if (!result.success) {
-        // revert the optimistic change
-        setOverrides((prev) => {
-          const next = new Map(prev)
-          next.delete(docType)
-          return next
-        })
-        setErrorBanner(result.error)
-        return
-      }
-      router.refresh()
+      const wait = Math.max(0, 1100 - (Date.now() - startedAt))
+      setTimeout(() => {
+        removeFrom(setFinalising, docType)
+        if (!result.success) {
+          setErrorBanner(result.error)
+          return
+        }
+        resolveFinal(docType)
+      }, wait)
     })
   }
 
@@ -469,6 +521,45 @@ export function CustomerPortalClient({
             </p>
           </section>
 
+          {/* "You're all set for now" closure panel */}
+          {showAllSet ? (
+            <section className={styles.allset} aria-live="polite">
+              <div className={styles.allsetInner}>
+                <div className={styles.allsetGlow} aria-hidden />
+                <span className={styles.allsetIco}>
+                  <CheckCheck width={26} height={26} strokeWidth={1.8} aria-hidden />
+                </span>
+                <h2 className={styles.allsetTitle}>You&rsquo;re all set for now</h2>
+                <p className={styles.allsetBody}>
+                  We&rsquo;re preparing the {revisionCount === 1 ? 'change' : 'changes'} you asked for
+                  on {revisionCount} {revisionCount === 1 ? 'document' : 'documents'}. We&rsquo;ll
+                  email you the moment {revisionCount === 1 ? 'it&rsquo;s' : 'they&rsquo;re'} ready to
+                  approve — there&rsquo;s nothing else you need to do right now.
+                </p>
+                <p className={styles.allsetQuiet}>
+                  <Lock width={13} height={13} aria-hidden /> You can safely close this page
+                </p>
+                <div className={styles.allsetActions}>
+                  <Link
+                    className={`${styles.btn} ${styles.btnPrimary} ${styles.btnMd}`}
+                    href={`/status/${orderId}`}
+                  >
+                    <Activity width={16} height={16} strokeWidth={1.5} aria-hidden /> View pack
+                    progress →
+                  </Link>
+                  {finalCount > 0 ? (
+                    <DownloadAllButton
+                      documents={finalDocs}
+                      packReference={packReference}
+                      someInRevision={revisionCount > 0}
+                      label="Download your approved documents"
+                    />
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
           {/* List head */}
           <div className={styles.listHead}>
             <div className={styles.listHeadLeft}>
@@ -548,13 +639,16 @@ export function CustomerPortalClient({
               // Selectable only in review mode on a draft/revised card.
               const selectable = reviewActive && (st === 'draft' || st === 'revised')
               const isSelected = selected.has(doc.documentType)
+              const isFinalising = finalising.has(doc.documentType)
+              const isJustFinal = justFinal.has(doc.documentType)
               const cardClass = [
                 styles.docCard,
                 st === 'final' ? styles.docCardFinal : '',
                 st === 'revision' ? styles.docCardRevision : '',
                 isSelected ? styles.docCardSelected : '',
                 isFlagged ? styles.docCardFlagged : '',
-                justApproved === doc.documentType ? styles.justApproved : '',
+                isFinalising ? styles.docCardFinalising : '',
+                isJustFinal ? styles.justFinal : '',
               ]
                 .filter(Boolean)
                 .join(' ')
@@ -590,6 +684,19 @@ export function CustomerPortalClient({
                       {Array.from({ length: 6 }).map((_, i) => (
                         <span key={i}>DRAFT &nbsp; DRAFT &nbsp; DRAFT</span>
                       ))}
+                    </div>
+                  ) : null}
+
+                  {isFinalising ? (
+                    <div className={styles.finLayer} aria-hidden>
+                      <span className={styles.finIco}>
+                        <Loader width={20} height={20} aria-hidden />
+                      </span>
+                      <div className={styles.finCopy}>
+                        <span className={styles.finTitle}>Finalising your document</span>
+                        <span className={styles.finSub}>Removing the draft watermark.</span>
+                      </div>
+                      <span className={styles.finShimmer} />
                     </div>
                   ) : null}
 
@@ -675,16 +782,24 @@ export function CustomerPortalClient({
                   <div className={styles.docAction}>
                     {/* Final → download */}
                     {st === 'final' ? (
-                      <a
-                        className={`${styles.btn} ${styles.btnSurface} ${styles.btnSm} ${styles.actionDownload}`}
-                        href={doc.downloadUrl ?? doc.fileUrl ?? '#'}
-                        onClick={(e) => {
-                          if (!doc.downloadUrl && !doc.fileUrl) e.preventDefault()
-                          e.stopPropagation()
-                        }}
-                      >
-                        <Download width={15} height={15} strokeWidth={1.5} aria-hidden /> Download PDF
-                      </a>
+                      <>
+                        {isJustFinal ? (
+                          <span className={styles.dlNote}>
+                            <Download width={13} height={13} strokeWidth={2.2} aria-hidden />
+                            Your final document is ready — download it
+                          </span>
+                        ) : null}
+                        <a
+                          className={`${styles.btn} ${styles.btnSurface} ${styles.btnSm} ${styles.actionDownload}`}
+                          href={doc.downloadUrl ?? doc.fileUrl ?? '#'}
+                          onClick={(e) => {
+                            if (!doc.downloadUrl && !doc.fileUrl) e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                        >
+                          <Download width={15} height={15} strokeWidth={1.5} aria-hidden /> Download PDF
+                        </a>
+                      </>
                     ) : st === 'revision' ? (
                       <div className={styles.actRevision}>
                         <Clock width={14} height={14} strokeWidth={1.7} aria-hidden /> We&rsquo;ll let
@@ -1236,10 +1351,13 @@ function DownloadAllButton({
   documents,
   packReference,
   someInRevision,
+  label,
 }: {
   documents: PortalDocument[]
   packReference: string
   someInRevision: boolean
+  /** Overrides the default "Download all" / "Download N ready" label. */
+  label?: string
 }) {
   const [busy, setBusy] = useState(false)
 
@@ -1275,7 +1393,7 @@ function DownloadAllButton({
       ) : (
         <>
           <Download width={15} height={15} strokeWidth={1.5} aria-hidden />{' '}
-          {someInRevision ? `Download ${documents.length} ready` : 'Download all'}
+          {label ?? (someInRevision ? `Download ${documents.length} ready` : 'Download all')}
         </>
       )}
     </button>

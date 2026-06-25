@@ -1477,3 +1477,73 @@
   .reqFootActions { width: 100%; }
   .reqFootActions .btn { flex: 1; }
 }
+
+/* ===== Finalising micro-moment on per-document approve (design 13) ===== */
+.finLayer {
+  position: absolute; inset: 0; z-index: 6; display: flex;
+  flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  padding: 26px; text-align: center;
+  background: linear-gradient(180deg, rgba(22,163,74,0.07), rgba(13,20,29,0.34)), var(--bg-secondary);
+  backdrop-filter: blur(1px); -webkit-backdrop-filter: blur(1px);
+  border-radius: var(--radius-lg);
+}
+.docCardFinalising { border-color: rgba(22,163,74,0.45); }
+.finIco {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-muted); border: 1px solid rgba(22,163,74,0.30); color: var(--accent-primary);
+}
+.finIco svg { animation: spin 0.9s linear infinite; stroke-width: 1.9; }
+.finCopy { display: flex; flex-direction: column; gap: 4px; }
+.finTitle { font-size: 14.5px; font-weight: 700; color: var(--text-primary); }
+.finSub { font-size: 12.5px; color: var(--text-muted); }
+.finShimmer { position: relative; width: 64%; height: 5px; border-radius: 99px; overflow: hidden; background: var(--bg-tertiary); }
+.finShimmer::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(22,163,74,0.70), transparent);
+  animation: finShimmer 1.15s ease-in-out infinite;
+}
+@keyframes finShimmer { to { transform: translateX(120%); } }
+
+/* download nudge after a card resolves to Final */
+.dlNote {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 0 9px;
+  font-size: 12px; font-weight: 600; color: var(--text-accent);
+}
+.dlNote svg { width: 13px; height: 13px; stroke-width: 2.2; }
+@keyframes dlPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+  50% { box-shadow: 0 0 0 4px rgba(22,163,74,0.20); }
+}
+.justFinal .actionDownload {
+  border-color: rgba(22,163,74,0.55); color: var(--text-accent); background: #18242f;
+  animation: dlPulse 1.5s var(--ease-out) 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .finIco svg, .finShimmer::after { animation: none; }
+  .justFinal .actionDownload { animation: none; }
+}
+
+/* ===== "You're all set for now" closing panel (design 13) ===== */
+.allset { position: relative; z-index: 1; margin-bottom: 28px; }
+.allsetInner {
+  position: relative; overflow: hidden; text-align: center;
+  background: rgba(17, 26, 36, 0.72); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: var(--radius-xl);
+  padding: 40px 32px 34px; box-shadow: 0 24px 60px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.allsetGlow {
+  position: absolute; top: -40%; left: 50%; transform: translateX(-50%);
+  width: 560px; height: 320px; max-width: 100%; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse at center, rgba(22,163,74,0.14) 0%, rgba(22,163,74,0.04) 42%, transparent 72%);
+}
+.allsetIco {
+  position: relative; z-index: 1; width: 52px; height: 52px; margin: 0 auto 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-muted); border: 1px solid rgba(22,163,74,0.34); color: var(--accent-primary);
+}
+.allsetTitle { position: relative; z-index: 1; font-size: 23px; font-weight: 700; letter-spacing: -0.015em; color: var(--text-primary); margin: 0; }
+.allsetBody { position: relative; z-index: 1; font-size: 15px; line-height: 1.65; color: var(--text-secondary); margin: 12px auto 0; max-width: 520px; text-wrap: pretty; }
+.allsetQuiet { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px; margin: 18px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.allsetQuiet svg { stroke-width: 1.6; }
+.allsetActions { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
