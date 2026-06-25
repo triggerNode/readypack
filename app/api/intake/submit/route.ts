@@ -9,6 +9,12 @@ import { enqueueGeneration } from '@/lib/documents/generation-queue'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// The HTTP response returns immediately; this only bounds the background
+// lifetime of the waitUntil-kept generation kick (kickWorker). The worker claims
+// its job within the first couple of seconds and runs as its own 800s
+// invocation, so a 60s ceiling here is ample to guarantee delivery without
+// billing this instance for the full multi-minute pipeline.
+export const maxDuration = 60
 
 const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
 
