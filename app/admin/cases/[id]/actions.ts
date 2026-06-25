@@ -9,7 +9,7 @@ import { resend } from '@/lib/resend'
 import { buildRequestInfoEmail, buildRevisedDocReadyEmail } from '@/lib/email'
 import { enqueueGeneration } from '@/lib/documents/generation-queue'
 import { regenerateDocumentWithFeedback } from '@/lib/documents/regenerate-document'
-import type { DocumentType } from '@/types/database'
+import type { CaseRevisionStatus, DocumentType } from '@/types/database'
 
 const DOC_LABEL: Record<DocumentType, string> = {
   ai_use_statement: 'AI Use Statement',
@@ -580,12 +580,18 @@ async function loadRevision(
   caseId: string,
   revisionId: string,
 ): Promise<
-  | { ok: true; orderId: string; documentTypes: DocumentType[]; feedback: string | null }
+  | {
+      ok: true
+      orderId: string
+      documentTypes: DocumentType[]
+      feedback: string | null
+      status: CaseRevisionStatus
+    }
   | { ok: false; error: string }
 > {
   const { data: rev, error } = await supabaseAdmin
     .from('case_revisions')
-    .select('id, order_id, document_types, feedback_text, kind')
+    .select('id, order_id, document_types, feedback_text, kind, status')
     .eq('id', revisionId)
     .maybeSingle()
   if (error) return { ok: false, error: error.message }
@@ -593,7 +599,13 @@ async function loadRevision(
   if (rev.order_id !== caseId) return { ok: false, error: 'Revision does not belong to this case' }
   if (rev.kind !== 'revision') return { ok: false, error: 'Not a revision request' }
   const documentTypes = (Array.isArray(rev.document_types) ? rev.document_types : []) as DocumentType[]
-  return { ok: true, orderId: rev.order_id, documentTypes, feedback: rev.feedback_text }
+  return {
+    ok: true,
+    orderId: rev.order_id,
+    documentTypes,
+    feedback: rev.feedback_text,
+    status: (rev.status as CaseRevisionStatus | null) ?? 'submitted',
+  }
 }
 
 export async function regenerateRevisionAction(
@@ -682,6 +694,18 @@ export async function releaseRevisionAction(
     if (!rev.ok) return { success: false, error: rev.error }
     if (rev.documentTypes.length === 0) {
       return { success: false, error: 'This revision has no documents to re-release.' }
+    }
+    // 2-step guard: block re-release until Regenerate has run (revision is
+    // 'in_review'). Stops an operator re-sending the unchanged draft, and emailing
+    // the customer that a "revised" document is ready when nothing was revised.
+    if (rev.status !== 'in_review') {
+      return {
+        success: false,
+        error:
+          rev.status === 'completed' || rev.status === 'approved'
+            ? 'This revision has already been re-released.'
+            : 'Regenerate with AI first — the customer must receive the updated document.',
+      }
     }
 
     const c = await loadCase(parsed.data.caseId)

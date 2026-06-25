@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock } from 'lucide-react'
+import { Loader, Lock, Send, Sparkles } from 'lucide-react'
 import {
   approvePackAction,
   escalateCaseAction,
@@ -393,7 +393,12 @@ export function ResolveInfoRequestButton({
   )
 }
 
-// Revisions tab — regenerate the customer's revision with their feedback.
+// ─────────────────────────────────────────
+// Revisions tab — STEP 1: Regenerate with AI.
+// Runs the AI synchronously (~15–60s), so the submit shows a calm working
+// state ("Applying the customer's changes with AI…") instead of looking frozen.
+// On success the revision flips to in_review → the card shows "Revised draft ready".
+// ─────────────────────────────────────────
 export function RegenerateRevisionButton({
   caseId,
   revisionId,
@@ -406,13 +411,35 @@ export function RegenerateRevisionButton({
     <form action={formAction} className={flag.sbtnStack}>
       <input type="hidden" name="caseId" value={caseId} />
       <input type="hidden" name="revisionId" value={revisionId} />
-      <FlagSubmit variant="secondary">Regenerate with feedback</FlagSubmit>
+      <RegenerateSubmit />
       <FieldError result={result} />
     </form>
   )
 }
 
-// Revisions tab — re-release the revised document(s) for customer review.
+function RegenerateSubmit() {
+  const { pending } = useFormStatus()
+  if (pending) {
+    return (
+      <span className={detail.revstepWorking}>
+        <Loader size={15} aria-hidden />
+        Applying the customer’s changes with AI… this can take up to a minute
+      </span>
+    )
+  }
+  return (
+    <button type="submit" className={`${flag.sbtn} ${flag.sbtnPrimary}`}>
+      <Sparkles size={14} aria-hidden />
+      Regenerate with AI
+    </button>
+  )
+}
+
+// ─────────────────────────────────────────
+// Revisions tab — STEP 2: Re-release & notify customer.
+// Only rendered once Regenerate has run (revision in_review); the server action
+// also enforces this guard. Emails the customer their revised document is ready.
+// ─────────────────────────────────────────
 export function ReleaseRevisionButton({
   caseId,
   revisionId,
@@ -425,9 +452,19 @@ export function ReleaseRevisionButton({
     <form action={formAction} className={flag.sbtnStack}>
       <input type="hidden" name="caseId" value={caseId} />
       <input type="hidden" name="revisionId" value={revisionId} />
-      <FlagSubmit variant="green-outline">Re-release for review</FlagSubmit>
+      <ReleaseSubmit />
       <FieldError result={result} />
     </form>
+  )
+}
+
+function ReleaseSubmit() {
+  const { pending } = useFormStatus()
+  return (
+    <button type="submit" disabled={pending} className={`${flag.sbtn} ${flag.sbtnPrimary}`}>
+      <Send size={14} aria-hidden />
+      {pending ? 'Sending…' : 'Re-release & notify customer'}
+    </button>
   )
 }
 

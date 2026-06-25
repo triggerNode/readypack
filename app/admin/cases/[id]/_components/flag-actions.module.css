@@ -77,6 +77,7 @@
 .sbtn {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
@@ -89,8 +90,18 @@
 }
 
 .sbtn:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: not-allowed;
+}
+
+.sbtnPrimary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.sbtnPrimary:hover {
+  background: var(--accent-hover);
 }
 
 .sbtnGreenOutline {
