@@ -16,6 +16,9 @@
   --border-subtle:    #1e2d3d;
   --border-emphasis:  #2a3f55;
 
+  /* Questionnaire sticky nav — glassy surface (overridden in light mode) */
+  --qz-nav-bg:        rgba(22, 32, 48, 0.82);
+
   /* Brand accents */
   --accent-primary:   #16a34a;
   --accent-hover:     #15803d;
@@ -157,9 +160,11 @@
 
 /* ─────────────────────────────────────────
    Light mode overrides (Phase 2.5)
-   Applied when <html data-theme="light">
-   Accent colour stays identical — brand is
-   the same; only surfaces and text invert.
+   Scoped to any [data-theme="light"] subtree. The client theme scope
+   (.rp-theme-scope) carries this attribute on the questionnaire/portal wrapper
+   — NOT on <html> — so the landing page and admin stay dark. Caveat: anything
+   portaled to <body> renders outside the scope and keeps the dark variables.
+   Accent colour stays identical — brand is the same; only surfaces and text invert.
 ───────────────────────────────────────── */
 [data-theme="light"] {
   --bg-primary:       #f8fafc;
@@ -171,6 +176,7 @@
   --text-secondary:   #374151;
   --text-muted:       #6b7280;
   --text-accent:      #16a34a;
+  --qz-nav-bg:        rgba(248, 250, 252, 0.82);
 }
 
 /* ─────────────────────────────────────────
@@ -212,6 +218,37 @@ button { font: inherit; cursor: pointer; }
 }
 
 /* ─────────────────────────────────────────
+   Client theme scope + toggle
+   Wraps client surfaces (questionnaire/portal) so the light palette applies
+   here only — not on <html> — keeping the landing page and admin dark.
+───────────────────────────────────────── */
+.rp-theme-scope {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+.rp-theme-toggle {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 70;
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  transition: color var(--duration-normal) var(--ease-out),
+              background var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
+}
+.rp-theme-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+  background: var(--accent-muted);
+}
+
+/* ─────────────────────────────────────────
    Questionnaire (Stage 5) — scoped styles
 ───────────────────────────────────────── */
 .qz-container { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter); }
@@ -219,13 +256,14 @@ button { font: inherit; cursor: pointer; }
 .qz-nav-bar {
   position: sticky; top: 0; z-index: 60;
   height: var(--nav-height);
-  background: rgba(22, 32, 48, 0.82);
+  background: var(--qz-nav-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-subtle);
 }
 .qz-nav-inner { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.qz-nav-account { display: flex; align-items: center; gap: 12px; }
+/* padding-right keeps the "Saved" pill clear of the fixed theme toggle in the corner */
+.qz-nav-account { display: flex; align-items: center; gap: 12px; padding-right: 44px; }
 .qz-nav-saved {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--accent-muted);
@@ -520,6 +558,11 @@ button { font: inherit; cursor: pointer; }
   transition: border-color var(--duration-normal) var(--ease-out), background var(--duration-normal) var(--ease-out);
 }
 .qz-upload:hover { border-color: var(--accent-primary); background: var(--accent-muted); }
+.qz-upload.is-dragging {
+  border-style: solid;
+  border-color: var(--accent-primary);
+  background: var(--accent-muted);
+}
 .qz-upload-primary { font-size: var(--body-sm); color: var(--text-secondary); }
 .qz-upload-secondary { font-size: var(--caption); color: var(--text-muted); }
 .qz-upload.is-filled {

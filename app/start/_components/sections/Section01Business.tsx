@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import type { DragEvent } from 'react'
 import { SectionHeader } from '../shared/SectionHeader'
 import { FieldGroup } from '../shared/FieldGroup'
 import { NavButtons } from '../shared/NavButtons'
@@ -41,6 +42,7 @@ export function Section01Business({ answers, isSaving, onChange, onContinue }: P
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function patch(p: Partial<Section1Answers>) {
@@ -90,6 +92,32 @@ export function Section01Business({ answers, isSaving, onChange, onContinue }: P
   function removeLogo() {
     patch({ logo_url: undefined, logo_filename: undefined })
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function handleDragOver(e: DragEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    // Show the right cursor: "copy" when droppable, "no-drop" mid-upload.
+    e.dataTransfer.dropEffect = uploading ? 'none' : 'copy'
+  }
+
+  function handleDragEnter(e: DragEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    if (uploading) return
+    setIsDragging(true)
+  }
+
+  function handleDragLeave(e: DragEvent<HTMLButtonElement>) {
+    // Ignore leaves that move onto a child of the zone (icon/labels) to avoid flicker.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setIsDragging(false)
+  }
+
+  function handleDrop(e: DragEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    setIsDragging(false)
+    if (uploading) return
+    const file = e.dataTransfer.files?.[0]
+    if (file) void handleFile(file)
   }
 
   async function handleContinue() {
@@ -197,13 +225,18 @@ export function Section01Business({ answers, isSaving, onChange, onContinue }: P
           ) : (
             <button
               type="button"
-              className="qz-upload"
+              className={`qz-upload${isDragging ? ' is-dragging' : ''}`}
               onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragEnd={() => setIsDragging(false)}
+              onDrop={handleDrop}
               disabled={uploading}
             >
               <UploadIcon />
               <span className="qz-upload-primary">
-                {uploading ? 'Uploading…' : 'Click to upload or drag here'}
+                {uploading ? 'Uploading…' : isDragging ? 'Drop to upload' : 'Click to upload or drag here'}
               </span>
               <span className="qz-upload-secondary">SVG, PNG or JPEG · max 2MB</span>
             </button>
