@@ -40,7 +40,7 @@ export default async function CustomerPortalPage({ params }: { params: Params })
   // ── 2. Authorise: order.user_id MUST equal user.id ──────────────
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
-    .select('id, user_id, delivery_status')
+    .select('id, user_id, delivery_status, display_reference')
     .eq('id', orderId)
     .maybeSingle()
 
@@ -78,7 +78,11 @@ export default async function CustomerPortalPage({ params }: { params: Params })
     return initials.padEnd(2, pad).slice(0, 2)
   })()
 
-  const packReference = `RP-${order.id.slice(0, 8).toUpperCase()}`
+  // Use the canonical, customer-facing reference (set by the Stripe webhook and
+  // shown on the confirmation page + every email); fall back to the order-id
+  // slice only for legacy orders without one.
+  const packReference =
+    order.display_reference ?? `RP-${order.id.slice(0, 8).toUpperCase()}`
 
   return (
     <CustomerPortalClient
