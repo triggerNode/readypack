@@ -293,12 +293,13 @@ export async function POST(req: NextRequest) {
         (typeof n1.trading_name === 'string' && n1.trading_name) ||
         (typeof n1.company_name === 'string' && n1.company_name) ||
         null
-      // Link to the live Pack Progress screen — except for critical cases, where
-      // a specialist makes contact first and there is no live progress to show.
+      // Link to the unified customer portal (progress tracker + documents on one
+      // page) — except for critical cases, where a specialist makes contact first
+      // and there is no live progress to show.
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
       const statusUrl =
         riskLevel !== 'critical' && submission.order_id
-          ? `${appUrl}/status/${submission.order_id}`
+          ? `${appUrl}/portal/${submission.order_id}`
           : null
       const sendResult = await resend.emails.send({
         from: FROM_ADDRESS,

@@ -100,7 +100,7 @@ export default async function StartPage() {
             {progressOrderId ? (
               <p style={{ margin: '0 0 24px' }}>
                 <Link
-                  href={`/status/${progressOrderId}`}
+                  href={`/portal/${progressOrderId}`}
                   style={{
                     display: 'inline-block',
                     background: 'var(--accent-primary)',

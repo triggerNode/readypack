@@ -1547,3 +1547,104 @@
 .allsetQuiet { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px; margin: 18px 0 0; font-size: 12.5px; color: var(--text-muted); }
 .allsetQuiet svg { stroke-width: 1.6; }
 .allsetActions { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+
+/* ===== Pre-generation + failed card lifecycle states (unified portal) =====
+   queued · drafting · qa · failed. These cards are non-interactive display
+   states; the existing draft/final/revision/flagged styles handle the rest. */
+.docCardQueued { opacity: 0.62; cursor: default; }
+.docCardDrafting,
+.docCardQa { cursor: default; }
+.docCardFailed { border-color: rgba(220, 38, 38, 0.22); cursor: default; }
+/* Neutralise the green review-hover lift on the non-interactive states. */
+.docCardQueued:hover { border-color: var(--border-subtle); box-shadow: none; }
+.docCardDrafting:hover,
+.docCardQa:hover { border-color: var(--border-subtle); box-shadow: none; }
+.docCardFailed:hover { border-color: rgba(220, 38, 38, 0.22); box-shadow: none; }
+
+/* Drafting / QA: gentle breathing on the document icon. */
+.docCardDrafting .docIcon svg,
+.docCardQa .docIcon svg { animation: cardBreathe 2.4s ease-in-out infinite; }
+@keyframes cardBreathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+/* Skeleton body (queued / drafting / qa). */
+.docSkel {
+  position: relative; z-index: 1; display: flex; flex-direction: column;
+  gap: 9px; margin-top: 16px;
+}
+.docSkel span {
+  height: 9px; border-radius: 99px; background: var(--bg-tertiary);
+  position: relative; overflow: hidden;
+}
+.docSkel span:nth-child(1) { width: 88%; }
+.docSkel span:nth-child(2) { width: 66%; }
+.docSkel span:nth-child(3) { width: 78%; }
+.docCardDrafting .docSkel span::after,
+.docCardQa .docSkel span::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(143, 163, 184, 0.16), transparent);
+  animation: finShimmer 1.5s ease-in-out infinite;
+}
+.docCardQa .docSkel span::after {
+  background: linear-gradient(90deg, transparent, rgba(22, 163, 74, 0.18), transparent);
+}
+
+/* Working micro-row (drafting / qa) — spinner + label. */
+.workRow {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 9px;
+  margin-top: 14px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
+}
+.workRow svg { width: 15px; height: 15px; stroke-width: 1.8; animation: spin 0.9s linear infinite; }
+.docCardQa .workRow { color: var(--text-accent); }
+.docCardQa .workRow svg { color: var(--accent-primary); }
+
+/* Queued waiting note. */
+.queuedNote {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 8px;
+  margin-top: 14px; font-size: 12.5px; color: var(--text-muted);
+}
+.queuedNote svg { width: 14px; height: 14px; stroke-width: 1.6; }
+
+/* Failed message row. */
+.failMsg {
+  position: relative; z-index: 1; display: flex; gap: 10px; align-items: flex-start;
+  margin-top: 14px;
+}
+.failMsg svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; stroke-width: 1.7; color: var(--deadline-red); }
+.failMsg span { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); text-wrap: pretty; }
+
+/* Failed footer note — honest "we've been notified" (no false auto-retry claim). */
+.actFailed {
+  display: flex; align-items: center; gap: 7px; justify-content: center;
+  font-size: 12.5px; font-weight: 600; color: var(--text-muted); padding: 9px 0;
+}
+.actFailed svg { width: 14px; height: 14px; stroke-width: 1.7; }
+
+/* Smooth-scroll arrival highlight ring. */
+.cardHi {
+  border-color: rgba(22, 163, 74, 0.55) !important;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.4), 0 12px 34px rgba(22, 163, 74, 0.12) !important;
+}
+.docCardFlagged.cardHi {
+  border-color: rgba(202, 138, 4, 0.65) !important;
+  box-shadow: 0 0 0 2px rgba(202, 138, 4, 0.45), 0 12px 34px rgba(202, 138, 4, 0.14) !important;
+}
+
+/* New badges: queued / work (drafting+qa) / fail. */
+.badgeWork { background: var(--bg-tertiary); border: 1px solid var(--border-emphasis); color: var(--text-secondary); }
+.badgeQueued { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-muted); }
+.badgeFail { background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.26); color: var(--deadline-red); }
+/* Pinging dot for the live working states. */
+.badgeLive .bdot { position: relative; }
+.badgeLive .bdot::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; background: currentColor;
+  animation: ping 2s var(--ease-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docCardDrafting .docIcon svg,
+  .docCardQa .docIcon svg,
+  .docSkel span::after,
+  .workRow svg,
+  .actFailed svg,
+  .badgeLive .bdot::after { animation: none; }
+}

@@ -1,9 +1,7 @@
 'use client'
 
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import {
   Activity,
   ArrowRight,
@@ -32,7 +30,7 @@ import {
   X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { DocumentType, InfoRequestStatus } from '@/types/database'
+import type { DocumentType } from '@/types/database'
 import {
   approveDocumentAction,
   approvePackAction,
@@ -40,47 +38,43 @@ import {
   submitRevisionAction,
 } from '../actions'
 import { ReadyPackLogo } from '@/components/ReadyPackLogo'
+import { DOC_CATALOG, DEFAULT_PAGE_COUNT } from '@/lib/documents/doc-catalog'
+import type { CardState, PortalFeed } from '@/lib/documents/portal-feed'
+import type { PackState } from '@/lib/documents/pack-status'
+import { deriveOverall, type ScrollTargetState } from '@/lib/documents/portal-view'
+import { PackTracker } from './PackTracker'
+import { PortalContextBlock } from './PortalContextBlock'
 import styles from './portal.module.css'
-
-export interface PortalDocument {
-  id: string
-  documentType: DocumentType
-  ref: string
-  title: string
-  icon: string
-  reg: string
-  pages: number
-  audience: string
-  fileUrl: string | null
-  /** Download-disposition URL (forces a real file save), vs fileUrl for inline preview. */
-  downloadUrl: string | null
-  deliveryStatus: 'pending' | 'approved' | 'in_revision' | 'delivered' | 'failed'
-  /** True once this document has been revised + re-released (a fresh draft to re-review). */
-  isRevised: boolean
-}
-
-export interface PortalInfoRequest {
-  id: string
-  /** NULL = case-level (top-level banner); otherwise tied to one document card. */
-  documentType: DocumentType | null
-  prompt: string
-  options: string[]
-  status: InfoRequestStatus
-}
 
 interface Props {
   orderId: string
   customerName: string
   customerInitials: string
   packReference: string
-  isApproved: boolean
-  documents: PortalDocument[]
-  infoRequests: PortalInfoRequest[]
+  /** The full feed for the first SSR paint — kept live thereafter by polling. */
+  initialFeed: PortalFeed
 }
 
-// Per-document UI status: draft (awaiting review) · revised (re-released draft) ·
-// revision (with our team) · final (approved, downloadable).
-type DocStatus = 'draft' | 'revised' | 'revision' | 'final'
+// A document merged for rendering: the feed's per-doc facts + the static catalog
+// display metadata (kept out of the polled payload to stay lean).
+interface PortalCard {
+  documentType: DocumentType
+  ref: string
+  title: string
+  icon: string
+  reg: string
+  audience: string
+  pages: number
+  cardState: CardState
+  isRevised: boolean
+  fileUrl: string | null
+  downloadUrl: string | null
+}
+
+// The optimistic override only ever advances a card to one of these terminal /
+// with-us states (approve → final, request changes → revision). It wins over the
+// feed's cardState until the next poll confirms the same thing.
+type Override = Extract<CardState, 'final' | 'revision'>
 
 const ICONS: Record<string, LucideIcon> = {
   'file-text': FileText,
@@ -105,10 +99,50 @@ function DocIcon({ name, size = 22 }: { name: string; size?: number }) {
   return <Cmp width={size} height={size} strokeWidth={1.5} aria-hidden />
 }
 
-function serverStatus(doc: PortalDocument): DocStatus {
-  if (doc.deliveryStatus === 'delivered') return 'final'
-  if (doc.deliveryStatus === 'in_revision') return 'revision'
-  return doc.isRevised ? 'revised' : 'draft'
+// Poll cadence: fast while actively generating, slower once settled, stop only
+// at the terminal `complete`. Keep polling through released/partial/review so a
+// revision being re-released (or generation progress) shows up live.
+function pollDelay(state: PackState): number | null {
+  if (state === 'complete') return null
+  if (state === 'progress') return 4000
+  return 12000
+}
+
+// Build the merged card view-models from the feed (canonical order preserved).
+function cardsFromFeed(feed: PortalFeed): PortalCard[] {
+  return feed.docs.map((d) => {
+    const meta = DOC_CATALOG[d.documentType]
+    return {
+      documentType: d.documentType,
+      ref: meta.ref,
+      title: meta.title,
+      icon: meta.icon,
+      reg: meta.reg,
+      audience: meta.audience,
+      pages: d.pageCount ?? DEFAULT_PAGE_COUNT,
+      cardState: d.cardState,
+      isRevised: d.isRevised,
+      fileUrl: d.fileUrl,
+      downloadUrl: d.downloadUrl,
+    }
+  })
+}
+
+// Fire individual downloads for a set of documents (staggered so the browser
+// doesn't drop concurrent navigations).
+function triggerBulkDownload(items: ReadonlyArray<{ downloadUrl: string | null; fileUrl: string | null }>) {
+  items.forEach((doc, i) => {
+    const url = doc.downloadUrl ?? doc.fileUrl
+    if (!url) return
+    setTimeout(() => {
+      const a = document.createElement('a')
+      a.href = url
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    }, i * 400)
+  })
 }
 
 export function CustomerPortalClient({
@@ -116,12 +150,9 @@ export function CustomerPortalClient({
   customerName,
   customerInitials,
   packReference,
-  documents,
-  infoRequests,
+  initialFeed,
 }: Props) {
-  const router = useRouter()
-  // Read prefers-reduced-motion after mount so SSR and first client render agree
-  // (false on both → no hydration mismatch), then track live changes.
+  // Read prefers-reduced-motion after mount so SSR and first client render agree.
   const [prefersReduced, setPrefersReduced] = useState(false)
   useEffect(() => {
     const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -131,17 +162,94 @@ export function CustomerPortalClient({
     return () => mql.removeEventListener('change', onChange)
   }, [])
 
-  // ── Per-document status, with optimistic overrides cleared on fresh data ──
-  const [overrides, setOverrides] = useState<Map<DocumentType, DocStatus>>(new Map())
-  // When the server sends fresh documents (after router.refresh), drop overrides.
+  // ── Live feed (single source of truth for tracker + cards) ───────
+  const [feed, setFeed] = useState<PortalFeed>(initialFeed)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Latest phase, kept in a ref so the poll's error/retry branches reschedule at
+  // the CURRENT cadence even if a refetch advanced the phase mid-request.
+  const phaseRef = useRef(feed.phase.state)
+  phaseRef.current = feed.phase.state
+
+  // Poll the unified feed. Recursive setTimeout so the cadence adapts to the
+  // current phase (and stops once the pack is complete). One read feeds both
+  // the tracker and the cards, so they can never disagree.
   useEffect(() => {
-    setOverrides(new Map())
-  }, [documents])
+    let cancelled = false
+    const controller = new AbortController()
 
-  const statusOf = (doc: PortalDocument): DocStatus =>
-    overrides.get(doc.documentType) ?? serverStatus(doc)
+    const schedule = (state: PackState) => {
+      const delay = pollDelay(state)
+      if (delay === null) return
+      timerRef.current = setTimeout(tick, delay)
+    }
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/portal/${orderId}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          if (!cancelled) schedule(phaseRef.current)
+          return
+        }
+        const next = (await res.json()) as PortalFeed
+        if (cancelled) return
+        setFeed(next)
+        schedule(next.phase.state)
+      } catch {
+        if (!cancelled) schedule(phaseRef.current)
+      }
+    }
 
-  const setOverride = (docTypes: DocumentType[], status: DocStatus) => {
+    schedule(feed.phase.state)
+    return () => {
+      cancelled = true
+      controller.abort()
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+    // Re-arm whenever the phase changes so the cadence follows it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, feed.phase.state])
+
+  // Immediate re-poll after an action, so the server truth replaces the
+  // optimistic override within the same beat (replaces the old router.refresh).
+  const refetch = async () => {
+    try {
+      const res = await fetch(`/api/portal/${orderId}`, { cache: 'no-store' })
+      if (res.ok) setFeed((await res.json()) as PortalFeed)
+    } catch {
+      /* a regular poll will catch up */
+    }
+  }
+
+  const cards = useMemo(() => cardsFromFeed(feed), [feed])
+
+  // ── Optimistic overrides — reconciled against the feed ───────────
+  const [overrides, setOverrides] = useState<Map<DocumentType, Override>>(new Map())
+  // Drop an override once the feed reports the same state (server caught up),
+  // instead of blunt-clearing every poll — that would flash a card back mid-action.
+  useEffect(() => {
+    setOverrides((prev) => {
+      if (prev.size === 0) return prev
+      const feedState = new Map(
+        feed.docs.map((d) => [d.documentType, d.cardState] as [DocumentType, CardState]),
+      )
+      let changed = false
+      const next = new Map(prev)
+      prev.forEach((ov, docType) => {
+        if (feedState.get(docType) === ov) {
+          next.delete(docType)
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
+  }, [feed])
+
+  const stateOf = (card: PortalCard): CardState =>
+    overrides.get(card.documentType) ?? card.cardState
+
+  const setOverride = (docTypes: DocumentType[], status: Override) => {
     setOverrides((prev) => {
       const next = new Map(prev)
       docTypes.forEach((t) => next.set(t, status))
@@ -149,7 +257,56 @@ export function CustomerPortalClient({
     })
   }
 
-  // ── Selection (draft/revised cards only) ─────────────────────────
+  // ── Remediation (info_requests) — open drives "action" ───────────
+  const openRequests = useMemo(
+    () => feed.infoRequests.filter((r) => r.status === 'open'),
+    [feed.infoRequests],
+  )
+  const submittedRequests = feed.infoRequests.filter((r) => r.status === 'submitted')
+  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set())
+  // Keep only answered ids that are still open on the server (optimistic window);
+  // once a request flips to submitted/resolved the feed itself drives the state.
+  useEffect(() => {
+    setAnsweredIds((prev) => {
+      if (prev.size === 0) return prev
+      const openIds = new Set(openRequests.map((r) => r.id))
+      let changed = false
+      const next = new Set<string>()
+      prev.forEach((id) => {
+        if (openIds.has(id)) next.add(id)
+        else changed = true
+      })
+      return changed ? next : prev
+    })
+  }, [openRequests])
+  const remainingRequests = openRequests.filter((r) => !answeredIds.has(r.id))
+
+  const portalMode: 'action' | 'submitted' | 'review' =
+    remainingRequests.length > 0
+      ? 'action'
+      : submittedRequests.length > 0 || answeredIds.size > 0
+        ? 'submitted'
+        : 'review'
+  const reviewActive = portalMode === 'review'
+
+  // ── Counts from the EFFECTIVE (override-applied) states ──────────
+  // Computing from the same states the cards render guarantees the tracker, the
+  // context block and the cards move together — even during an optimistic flip.
+  const finalCount = cards.filter((c) => stateOf(c) === 'final').length
+  const revisionCount = cards.filter((c) => stateOf(c) === 'revision').length
+  const awaitingTypes = cards.filter((c) => stateOf(c) === 'draft').map((c) => c.documentType)
+  const awaitingCount = awaitingTypes.length
+  const total = cards.length
+  const allFinal = total > 0 && finalCount === total
+  const finalDocs = cards.filter((c) => stateOf(c) === 'final')
+
+  const overall = deriveOverall(
+    feed.phase.state,
+    { total, finalCount, revisionCount, awaitingCount },
+    remainingRequests.length > 0,
+  )
+
+  // ── Selection (draft cards only) ─────────────────────────────────
   const [selected, setSelected] = useState<Set<DocumentType>>(new Set())
 
   // ── Request-changes overlay ──────────────────────────────────────
@@ -159,53 +316,15 @@ export function CustomerPortalClient({
   const [reqError, setReqError] = useState<string | null>(null)
   const reqTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // ── Finalising overlay (whole-pack / approve-remaining) ──────────
+  // ── Finalising overlay + per-card micro-moment ───────────────────
   const [overlayShow, setOverlayShow] = useState(false)
   const [activeStep, setActiveStep] = useState(-1)
-  // Per-document finalising micro-moment: cards mid-finalise show the in-card
-  // "Finalising your document" layer; once Final they briefly show a download nudge.
   const [finalising, setFinalising] = useState<Set<DocumentType>>(new Set())
   const [justFinal, setJustFinal] = useState<Set<DocumentType>>(new Set())
   const [errorBanner, setErrorBanner] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  // ── Remediation flow (ST2-4 info_requests) — unchanged ───────────
-  const openRequests = useMemo(() => infoRequests.filter((r) => r.status === 'open'), [infoRequests])
-  const submittedRequests = infoRequests.filter((r) => r.status === 'submitted')
-  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set())
-  const remainingRequests = openRequests.filter((r) => !answeredIds.has(r.id))
-
-  // Remediation overrides the review experience: while our team has questions
-  // outstanding, we don't let the customer approve/revise.
-  const portalMode: 'action' | 'submitted' | 'review' =
-    remainingRequests.length > 0
-      ? 'action'
-      : submittedRequests.length > 0 || answeredIds.size > 0
-        ? 'submitted'
-        : 'review'
-  const reviewActive = portalMode === 'review'
-
-  // ── Per-document counts (drive summary chip + hero + bar) ────────
-  const statuses = documents.map(statusOf)
-  const finalCount = statuses.filter((s) => s === 'final').length
-  const revisionCount = statuses.filter((s) => s === 'revision').length
-  const awaitingTypes = documents
-    .filter((d) => {
-      const s = statusOf(d)
-      return s === 'draft' || s === 'revised'
-    })
-    .map((d) => d.documentType)
-  const awaitingCount = awaitingTypes.length
-  const total = documents.length
-  const allFinal = total > 0 && finalCount === total
-  const finalDocs = documents.filter((d) => statusOf(d) === 'final')
-
-  // "You're all set for now" closure: the customer has nothing left to act on —
-  // every document is Final or In-revision, none awaiting review, no open
-  // info-requests — but the pack isn't complete because something's being revised.
-  const showAllSet =
-    reviewActive && !allFinal && awaitingCount === 0 && revisionCount > 0
-
+  // ── Remediation flow overlay state ───────────────────────────────
   const [flowOpen, setFlowOpen] = useState(false)
   const [currentReqId, setCurrentReqId] = useState<string | null>(null)
   const [flowSelections, setFlowSelections] = useState<string[]>([])
@@ -226,6 +345,26 @@ export function CustomerPortalClient({
       return () => clearTimeout(t)
     }
   }, [reqOpen])
+
+  // ── Smooth scroll-to-card (from the context CTAs) ────────────────
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const [highlightType, setHighlightType] = useState<DocumentType | null>(null)
+  const hiTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (hiTimer.current) clearTimeout(hiTimer.current) }, [])
+
+  const scrollToCard = (target: ScrollTargetState) => {
+    const el = gridRef.current?.querySelector<HTMLElement>(`[data-card-state="${target}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth', block: 'center' })
+    const dt = el.dataset.doctype as DocumentType | undefined
+    if (!dt) return
+    setHighlightType(dt)
+    if (hiTimer.current) clearTimeout(hiTimer.current)
+    hiTimer.current = setTimeout(() => setHighlightType(null), 2000)
+  }
+  const scrollToTop = () =>
+    window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' })
+  const handleDownloadAll = () => triggerBulkDownload(finalDocs)
 
   // ── Selection helpers ────────────────────────────────────────────
   const toggleSelect = (docType: DocumentType) => {
@@ -249,19 +388,11 @@ export function CustomerPortalClient({
     })
 
   // ── Approve a single document — with the finalising micro-moment ──
-  // The in-card "Finalising your document — removing the draft watermark" layer
-  // shows while the server re-renders the un-watermarked PDF (real work), then
-  // resolves to Final with a one-off download nudge. Reduced motion → instant swap.
-  // Note: the finalising card state is driven by the `finalising` Set, NOT the
-  // transition's `pending` (which clears when the action resolves, before the
-  // min-beat setTimeout fires).
   const resolveFinal = (docType: DocumentType) => {
     setOverride([docType], 'final')
-    // One-off download nudge that self-expires (it must not persist for the
-    // session — the old justApproved flash auto-cleared the same way).
     addTo(setJustFinal, docType)
     setTimeout(() => removeFrom(setJustFinal, docType), 6000)
-    router.refresh()
+    void refetch()
   }
   const approveOne = (docType: DocumentType) => {
     setErrorBanner(null)
@@ -283,8 +414,6 @@ export function CustomerPortalClient({
       return
     }
 
-    // Show the finalising layer for the duration of the real server work, with a
-    // minimum premium beat so it never just flickers.
     const startedAt = Date.now()
     addTo(setFinalising, docType)
     startTransition(async () => {
@@ -311,12 +440,11 @@ export function CustomerPortalClient({
       if (!result.success) {
         setOverlayShow(false)
         setActiveStep(-1)
-        setOverrides(new Map())
         setErrorBanner(result.error)
         return
       }
       setOverride(awaitingTypes, 'final')
-      router.refresh()
+      void refetch()
       setTimeout(() => setOverlayShow(false), 400)
     }
 
@@ -364,14 +492,17 @@ export function CustomerPortalClient({
         setReqError(result.error)
         return
       }
+      // Flip the cards to "revision" immediately. Because the tracker + context
+      // recompute off these same effective states, they re-engage in the very
+      // same render — the revision-sync rule, by construction.
       setOverride(targets, 'revision')
       setSelected(new Set())
       setReqOpen(false)
-      router.refresh()
+      void refetch()
     })
   }
 
-  // ── Remediation flow handlers (unchanged) ────────────────────────
+  // ── Remediation flow handlers ────────────────────────────────────
   const startFlow = (startId?: string | null) => {
     const start =
       startId && !answeredIds.has(startId) ? startId : (remainingRequests[0]?.id ?? null)
@@ -425,7 +556,7 @@ export function CustomerPortalClient({
       } else {
         setFlowOpen(false)
         setDoneOpen(true)
-        router.refresh()
+        void refetch()
       }
     })
   }
@@ -465,100 +596,15 @@ export function CustomerPortalClient({
         <div className={`${styles.glow} ${allFinal ? styles.glowOn : ''}`} aria-hidden />
 
         <div className={styles.container}>
-          {/* Hero */}
-          <section className={styles.hero}>
-            <div className={styles.heroBadgeRow}>
-              {portalMode === 'action' ? (
-                <span className={`${styles.statusPill} ${styles.pillAction}`}>
-                  <span className={styles.dot} /> Action needed
-                </span>
-              ) : portalMode === 'submitted' ? (
-                <span className={`${styles.statusPill} ${styles.pillReview}`}>
-                  <span className={styles.dot} /> In review
-                </span>
-              ) : allFinal ? (
-                <span className={`${styles.statusPill} ${styles.pillApproved}`}>
-                  <span className={styles.dot} /> Pack complete
-                </span>
-              ) : finalCount > 0 || revisionCount > 0 ? (
-                <span className={`${styles.statusPill} ${styles.pillApproved}`}>
-                  <span className={styles.dot} /> In progress
-                </span>
-              ) : (
-                <span className={`${styles.statusPill} ${styles.pillPending}`}>
-                  <span className={styles.dot} /> Pending your approval
-                </span>
-              )}
-            </div>
-
-            {portalMode === 'action' ? (
-              <h1 className={styles.heroTitle}>We need a little more information</h1>
-            ) : portalMode === 'submitted' ? (
-              <h1 className={styles.heroTitle}>Thanks — your answers are in</h1>
-            ) : allFinal ? (
-              <h1 className={styles.heroTitle}>
-                <span className={styles.checkIco}>
-                  <Check width={18} height={18} aria-hidden />
-                </span>
-                Your compliance pack is complete
-              </h1>
-            ) : finalCount > 0 || revisionCount > 0 ? (
-              <h1 className={styles.heroTitle}>Approve what&rsquo;s ready — we&rsquo;ll keep working on the rest</h1>
-            ) : (
-              <h1 className={styles.heroTitle}>Your compliance pack is ready for review</h1>
-            )}
-
-            <p className={styles.heroSub}>
-              {portalMode === 'action'
-                ? 'Our compliance team has a few quick questions about your answers. The cards below show what needs your input — answer them and we’ll pick your pack straight back up.'
-                : portalMode === 'submitted'
-                  ? 'Our compliance team is reviewing your responses and will update your pack. We’ll email you when it’s ready — there’s nothing else you need to do right now.'
-                  : allFinal
-                    ? 'Every document is approved and un-watermarked. Download them individually below, or all at once.'
-                    : finalCount > 0 || revisionCount > 0
-                      ? 'Approved documents are unlocked for download right away. Anything you’ve sent back for changes is with our team — we’ll email you when it’s ready to approve.'
-                      : 'Review each draft below. Approve the documents you’re happy with to download them straight away, or request changes on any that aren’t right yet — just those go back to our team.'}
-            </p>
-          </section>
-
-          {/* "You're all set for now" closure panel */}
-          {showAllSet ? (
-            <section className={styles.allset} aria-live="polite">
-              <div className={styles.allsetInner}>
-                <div className={styles.allsetGlow} aria-hidden />
-                <span className={styles.allsetIco}>
-                  <CheckCheck width={26} height={26} strokeWidth={1.8} aria-hidden />
-                </span>
-                <h2 className={styles.allsetTitle}>You&rsquo;re all set for now</h2>
-                <p className={styles.allsetBody}>
-                  We&rsquo;re preparing the {revisionCount === 1 ? 'change' : 'changes'} you asked for
-                  on {revisionCount} {revisionCount === 1 ? 'document' : 'documents'}. We&rsquo;ll
-                  email you the moment {revisionCount === 1 ? 'it&rsquo;s' : 'they&rsquo;re'} ready to
-                  approve — there&rsquo;s nothing else you need to do right now.
-                </p>
-                <p className={styles.allsetQuiet}>
-                  <Lock width={13} height={13} aria-hidden /> You can safely close this page
-                </p>
-                <div className={styles.allsetActions}>
-                  <Link
-                    className={`${styles.btn} ${styles.btnPrimary} ${styles.btnMd}`}
-                    href={`/status/${orderId}`}
-                  >
-                    <Activity width={16} height={16} strokeWidth={1.5} aria-hidden /> View pack
-                    progress →
-                  </Link>
-                  {finalCount > 0 ? (
-                    <DownloadAllButton
-                      documents={finalDocs}
-                      packReference={packReference}
-                      someInRevision={revisionCount > 0}
-                      label="Download your approved documents"
-                    />
-                  ) : null}
-                </div>
-              </div>
-            </section>
-          ) : null}
+          {/* Tracker + context (single source of truth, on top) */}
+          <PackTracker phase={feed.phase} overall={overall} />
+          <PortalContextBlock
+            overall={overall}
+            revisionCount={revisionCount}
+            openRequestCount={remainingRequests.length}
+            onScrollTo={scrollToCard}
+            onDownloadAll={handleDownloadAll}
+          />
 
           {/* List head */}
           <div className={styles.listHead}>
@@ -629,15 +675,16 @@ export function CustomerPortalClient({
           ) : null}
 
           {/* Doc grid */}
-          <div className={styles.docGrid}>
-            {documents.map((doc) => {
-              const st = statusOf(doc)
+          <div className={styles.docGrid} ref={gridRef}>
+            {cards.map((doc) => {
+              const st = stateOf(doc)
               const isRemediation = portalMode === 'action' || portalMode === 'submitted'
               const flaggedReqId =
                 portalMode === 'action' ? flaggedDocTypes.get(doc.documentType) : undefined
-              const isFlagged = Boolean(flaggedReqId)
-              // Selectable only in review mode on a draft/revised card.
-              const selectable = reviewActive && (st === 'draft' || st === 'revised')
+              const isFlagged = st === 'flagged'
+              const isRevisedDraft = st === 'draft' && doc.isRevised
+              // Selectable only in review mode on a draft card.
+              const selectable = reviewActive && st === 'draft'
               const isSelected = selected.has(doc.documentType)
               const isFinalising = finalising.has(doc.documentType)
               const isJustFinal = justFinal.has(doc.documentType)
@@ -645,18 +692,25 @@ export function CustomerPortalClient({
                 styles.docCard,
                 st === 'final' ? styles.docCardFinal : '',
                 st === 'revision' ? styles.docCardRevision : '',
+                st === 'flagged' ? styles.docCardFlagged : '',
+                st === 'queued' ? styles.docCardQueued : '',
+                st === 'drafting' ? styles.docCardDrafting : '',
+                st === 'qa' ? styles.docCardQa : '',
+                st === 'failed' ? styles.docCardFailed : '',
                 isSelected ? styles.docCardSelected : '',
-                isFlagged ? styles.docCardFlagged : '',
                 isFinalising ? styles.docCardFinalising : '',
                 isJustFinal ? styles.justFinal : '',
+                highlightType === doc.documentType ? styles.cardHi : '',
               ]
                 .filter(Boolean)
                 .join(' ')
-              const showWatermark = st === 'draft' || st === 'revised'
+              const showWatermark = st === 'draft'
               return (
                 <div
                   key={doc.documentType}
                   className={cardClass}
+                  data-card-state={st}
+                  data-doctype={doc.documentType}
                   onClick={
                     selectable
                       ? (e) => {
@@ -730,57 +784,27 @@ export function CustomerPortalClient({
                       </span>
                     </div>
                     <div className={styles.badgeStack}>
-                      {st === 'revised' ? (
+                      {isRevisedDraft ? (
                         <span className={styles.revisedTag}>
                           <RotateCcw width={11} height={11} strokeWidth={2.2} aria-hidden /> Revised
                         </span>
                       ) : null}
-                      {isFlagged ? (
-                        <span className={`${styles.cardBadge} ${styles.badgeAction}`}>
-                          <span className={styles.bdot} /> Action needed
-                        </span>
-                      ) : st === 'final' ? (
-                        <span className={`${styles.cardBadge} ${styles.badgeFinal}`}>
-                          <span className={styles.bdot} /> Final
-                        </span>
-                      ) : st === 'revision' ? (
-                        <span className={`${styles.cardBadge} ${styles.badgeRev}`}>
-                          <span className={styles.bdot} /> In revision
-                        </span>
-                      ) : (
-                        <span className={`${styles.cardBadge} ${styles.badgeDraft}`}>
-                          <span className={styles.bdot} /> Draft
-                        </span>
-                      )}
+                      <CardBadge state={st} />
                     </div>
                   </div>
 
                   <div className={styles.docRef}>{doc.ref}</div>
                   <h3 className={styles.docTitle}>{doc.title}</h3>
 
-                  {st === 'revision' ? (
-                    <div className={styles.revMsg}>
-                      <Loader width={16} height={16} strokeWidth={1.7} aria-hidden />
-                      <span>
-                        We&rsquo;re working on your changes — we&rsquo;ll email you when it&rsquo;s
-                        ready to approve.
-                      </span>
-                    </div>
-                  ) : (
-                    <div className={styles.docMeta}>
-                      <span className={styles.metaReg}>{doc.reg}</span>
-                      <span className={styles.metaDot} />
-                      <span className={styles.metaPages}>
-                        {doc.pages} pages · {doc.audience}
-                      </span>
-                    </div>
-                  )}
-                  {st === 'revised' ? (
-                    <p className={styles.revisedNote}>Updated version — ready to review again.</p>
-                  ) : null}
+                  <CardBody
+                    state={st}
+                    reg={doc.reg}
+                    pages={doc.pages}
+                    audience={doc.audience}
+                    isRevisedDraft={isRevisedDraft}
+                  />
 
                   <div className={styles.docAction}>
-                    {/* Final → download */}
                     {st === 'final' ? (
                       <>
                         {isJustFinal ? (
@@ -805,9 +829,14 @@ export function CustomerPortalClient({
                         <Clock width={14} height={14} strokeWidth={1.7} aria-hidden /> We&rsquo;ll let
                         you know when it&rsquo;s ready
                       </div>
-                    ) : isRemediation ? (
-                      // Draft/revised while remediation is outstanding: flagged → answer,
-                      // else a calm muted note (no approve/revise until questions are resolved).
+                    ) : st === 'failed' ? (
+                      <div className={styles.actFailed}>
+                        <Clock width={14} height={14} strokeWidth={1.7} aria-hidden /> Our team has
+                        been notified
+                      </div>
+                    ) : st === 'draft' && isRemediation ? (
+                      // Draft while remediation is outstanding: flagged → answer,
+                      // else a calm muted note (no approve/revise until resolved).
                       isFlagged ? (
                         <button
                           type="button"
@@ -825,8 +854,21 @@ export function CustomerPortalClient({
                           <Check width={14} height={14} strokeWidth={2} aria-hidden /> No action needed
                         </span>
                       )
-                    ) : (
-                      // Review mode draft/revised: per-card approve + request changes + preview
+                    ) : st === 'flagged' ? (
+                      // A flagged card (open question on a generated doc) → answer.
+                      <button
+                        type="button"
+                        className={`${styles.btn} ${styles.btnAmber} ${styles.btnSm} ${styles.actionAnswer}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startFlow(flaggedReqId)
+                        }}
+                      >
+                        <MessageSquareText width={15} height={15} strokeWidth={1.5} aria-hidden />
+                        Answer this question
+                      </button>
+                    ) : st === 'draft' ? (
+                      // Review mode draft: per-card approve + request changes + preview
                       <>
                         <div className={styles.scopeLabel}>This document</div>
                         <div className={styles.actRow}>
@@ -869,7 +911,7 @@ export function CustomerPortalClient({
                           </a>
                         </div>
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               )
@@ -936,22 +978,20 @@ export function CustomerPortalClient({
                 </div>
               </div>
               <div className={styles.abActions}>
-                <Link
+                <button
+                  type="button"
                   className={`${styles.btn} ${styles.btnSurface} ${styles.btnMd}`}
-                  href={`/status/${orderId}`}
+                  onClick={scrollToTop}
                 >
                   <Activity width={16} height={16} strokeWidth={1.5} aria-hidden /> View pack progress
-                </Link>
+                </button>
               </div>
             </div>
           </div>
         </div>
       ) : null}
 
-      {/* ── Sticky action bar — review: approve / request changes ──
-          Only when there are documents left to act on (drafts/revised). When
-          everything is Final or In-revision there's nothing to approve, so the
-          bar is hidden rather than showing a disabled "Approve remaining 0". */}
+      {/* ── Sticky action bar — review: approve / request changes ── */}
       {reviewActive && awaitingCount > 0 ? (
         <div className={styles.actionBar}>
           <div className={styles.container}>
@@ -1031,6 +1071,7 @@ export function CustomerPortalClient({
       <div
         className={`${styles.overlay} ${overlayShow ? styles.overlayShow : ''}`}
         role="dialog"
+        aria-modal="true"
         aria-label="Finalising your pack"
         aria-hidden={!overlayShow}
       >
@@ -1079,16 +1120,16 @@ export function CustomerPortalClient({
             {reqTargets.length === 1 ? (
               <span className={styles.reqRelates}>
                 <FileText width={14} height={14} strokeWidth={1.6} aria-hidden />
-                {documents.find((d) => d.documentType === reqTargets[0])?.title ?? 'Document'}
+                {cards.find((d) => d.documentType === reqTargets[0])?.title ?? 'Document'}
                 <span className={styles.reqRelatesRef}>
-                  · {documents.find((d) => d.documentType === reqTargets[0])?.ref ?? ''}
+                  · {cards.find((d) => d.documentType === reqTargets[0])?.ref ?? ''}
                 </span>
               </span>
             ) : reqTargets.length > 1 ? (
               <div className={styles.reqChips}>
                 {reqTargets.map((t) => (
                   <span key={t} className={styles.reqMchip}>
-                    {documents.find((d) => d.documentType === t)?.title ?? t}
+                    {cards.find((d) => d.documentType === t)?.title ?? t}
                   </span>
                 ))}
               </div>
@@ -1208,7 +1249,7 @@ export function CustomerPortalClient({
                 {currentRequest.documentType ? (
                   <>
                     <FileText width={14} height={14} strokeWidth={1.5} aria-hidden /> Relates to ·{' '}
-                    {documents.find((d) => d.documentType === currentRequest.documentType)?.title ??
+                    {cards.find((d) => d.documentType === currentRequest.documentType)?.title ??
                       'your pack'}
                   </>
                 ) : (
@@ -1317,9 +1358,16 @@ export function CustomerPortalClient({
             it’s ready. There’s nothing else you need to do right now.
           </p>
           <div className={styles.doneActions}>
-            <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnMd}`} href={`/status/${orderId}`}>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary} ${styles.btnMd}`}
+              onClick={() => {
+                setDoneOpen(false)
+                scrollToTop()
+              }}
+            >
               <Activity width={17} height={17} strokeWidth={1.5} aria-hidden /> View pack progress
-            </Link>
+            </button>
             <button
               type="button"
               className={`${styles.btn} ${styles.btnGhost} ${styles.btnMd}`}
@@ -1347,34 +1395,133 @@ export function CustomerPortalClient({
   )
 }
 
+// ── Per-card badge ─────────────────────────────────────────────────
+function CardBadge({ state }: { state: CardState }) {
+  switch (state) {
+    case 'final':
+      return <span className={`${styles.cardBadge} ${styles.badgeFinal}`}><span className={styles.bdot} /> Final</span>
+    case 'revision':
+      return <span className={`${styles.cardBadge} ${styles.badgeRev}`}><span className={styles.bdot} /> In revision</span>
+    case 'flagged':
+      return <span className={`${styles.cardBadge} ${styles.badgeAction}`}><span className={styles.bdot} /> Action needed</span>
+    case 'queued':
+      return <span className={`${styles.cardBadge} ${styles.badgeQueued}`}><span className={styles.bdot} /> Queued</span>
+    case 'drafting':
+      return <span className={`${styles.cardBadge} ${styles.badgeWork} ${styles.badgeLive}`}><span className={styles.bdot} /> Drafting</span>
+    case 'qa':
+      return <span className={`${styles.cardBadge} ${styles.badgeWork} ${styles.badgeLive}`}><span className={styles.bdot} /> In QA</span>
+    case 'failed':
+      return <span className={`${styles.cardBadge} ${styles.badgeFail}`}><span className={styles.bdot} /> Needs another pass</span>
+    case 'draft':
+    default:
+      return <span className={`${styles.cardBadge} ${styles.badgeDraft}`}><span className={styles.bdot} /> Draft</span>
+  }
+}
+
+// ── Per-card body (the non-action middle of the card) ──────────────
+function CardBody({
+  state,
+  reg,
+  pages,
+  audience,
+  isRevisedDraft,
+}: {
+  state: CardState
+  reg: string
+  pages: number
+  audience: string
+  isRevisedDraft: boolean
+}): ReactNode {
+  const skeleton = (
+    <div className={styles.docSkel}>
+      <span />
+      <span />
+      <span />
+    </div>
+  )
+
+  if (state === 'queued') {
+    return (
+      <>
+        {skeleton}
+        <div className={styles.queuedNote}>
+          <Clock aria-hidden /> Waiting to start
+        </div>
+      </>
+    )
+  }
+  if (state === 'drafting') {
+    return (
+      <>
+        {skeleton}
+        <div className={styles.workRow}>
+          <Loader aria-hidden /> Drafting your document…
+        </div>
+      </>
+    )
+  }
+  if (state === 'qa') {
+    return (
+      <>
+        {skeleton}
+        <div className={styles.workRow}>
+          <Loader aria-hidden /> Checking quality…
+        </div>
+      </>
+    )
+  }
+  if (state === 'failed') {
+    return (
+      <div className={styles.failMsg}>
+        <RotateCcw aria-hidden />
+        <span>This document needs another pass — we’re on it. No action needed from you.</span>
+      </div>
+    )
+  }
+  if (state === 'revision') {
+    return (
+      <div className={styles.revMsg}>
+        <Loader width={16} height={16} strokeWidth={1.7} aria-hidden />
+        <span>
+          We&rsquo;re working on your changes — we&rsquo;ll email you when it&rsquo;s ready to
+          approve.
+        </span>
+      </div>
+    )
+  }
+  // draft, revised draft, flagged, final → the standard meta line.
+  return (
+    <>
+      <div className={styles.docMeta}>
+        <span className={styles.metaReg}>{reg}</span>
+        <span className={styles.metaDot} />
+        <span className={styles.metaPages}>
+          {pages} pages · {audience}
+        </span>
+      </div>
+      {isRevisedDraft ? (
+        <p className={styles.revisedNote}>Updated version — ready to review again.</p>
+      ) : null}
+    </>
+  )
+}
+
 function DownloadAllButton({
   documents,
   packReference,
   someInRevision,
   label,
 }: {
-  documents: PortalDocument[]
+  documents: ReadonlyArray<{ downloadUrl: string | null; fileUrl: string | null }>
   packReference: string
   someInRevision: boolean
-  /** Overrides the default "Download all" / "Download N ready" label. */
   label?: string
 }) {
   const [busy, setBusy] = useState(false)
 
   const handleDownload = () => {
     setBusy(true)
-    documents.forEach((doc, i) => {
-      const url = doc.downloadUrl ?? doc.fileUrl
-      if (!url) return
-      setTimeout(() => {
-        const a = document.createElement('a')
-        a.href = url
-        a.rel = 'noopener noreferrer'
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-      }, i * 400)
-    })
+    triggerBulkDownload(documents)
     setTimeout(() => setBusy(false), Math.max(800, documents.length * 450))
   }
 

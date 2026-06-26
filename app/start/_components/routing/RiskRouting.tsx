@@ -59,7 +59,7 @@ function ProgressLink({ orderId }: { orderId: string | null }) {
   if (!orderId) return null
   return (
     <Link
-      href={`/status/${orderId}`}
+      href={`/portal/${orderId}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

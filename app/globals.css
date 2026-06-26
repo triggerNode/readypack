@@ -31,8 +31,15 @@
   /* Semantic */
   --success:          #16a34a;
   --warning:          #ca8a04;
+  --warning-text:     #facc15;   /* bright amber-400 for text/icons on dark */
   --danger:           #dc2626;
   --deadline-red:     #f87171;
+
+  /* "In revision" indigo family (promoted from the unified-portal mock; shares
+     the chroma family with the admin --running accent). */
+  --rev-ind:          #818cf8;
+  --rev-fill:         rgba(99, 102, 241, 0.12);
+  --rev-line:         rgba(99, 102, 241, 0.30);
 
   /* Fonts — next/font injects --font-manrope and --font-mono on <html>.
      We expose --font-sans as an alias so design-kit CSS that references it
