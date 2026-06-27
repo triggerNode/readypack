@@ -15,8 +15,11 @@ export default async function StartPage() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    // No session — user should reach this page only via magic link
-    redirect('/')
+    // No session. Rather than dumping the user on the landing page, send them
+    // to the graceful re-entry screen — which lets a returning customer request
+    // a fresh secure link (their progress is saved). Makes /start a safe link
+    // to surface in emails / the confirmation page.
+    redirect('/resume?next=/start')
   }
 
   const { data: submission, error } = await supabase

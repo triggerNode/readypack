@@ -229,7 +229,10 @@ export default async function ConfirmationPage({ searchParams }: Props) {
           <p className={styles.ctaFoot}>
             We&apos;ve sent a secure link to{' '}
             <strong>{email || 'the email on file'}</strong>. Click it to open your questionnaire.
-            Use the same link to return later if you need to pause.
+            Use the same link to return any time — your progress is saved.{' '}
+            <Link href="/start" style={{ color: 'var(--text-accent, #16A34A)', textDecoration: 'underline' }}>
+              Return to your questionnaire →
+            </Link>
           </p>
 
           <p className={styles.support}>

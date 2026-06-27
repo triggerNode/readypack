@@ -104,6 +104,85 @@ export function buildMagicLinkEmail({ magicLink, planName, packReference }: Magi
 </html>`
 }
 
+/**
+ * Sent from the /resume flow when a customer asks for a fresh secure link
+ * (their previous one-time link was consumed/expired and they have no live
+ * session). Neutral copy so it fits whether they were mid-questionnaire or
+ * returning to their portal — the embedded link carries the right destination.
+ */
+export function buildResumeLinkEmail({ magicLink }: { magicLink: string }): string {
+  const safeLink = escapeHtml(magicLink)
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Your ReadyPack secure link</title>
+</head>
+<body style="margin:0;padding:0;background:#0f1623;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e6ecf3;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0f1623;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#162030;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:40px;">
+          <tr>
+            <td style="padding-bottom:24px;">
+              <span style="font-weight:700;font-size:20px;letter-spacing:-0.01em;color:#f0f4f8;">
+                Ready<span style="color:#16A34A;">Pack</span>
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom:16px;">
+              <h1 style="margin:0;font-size:24px;line-height:1.3;color:#f0f4f8;font-weight:700;">
+                Here&rsquo;s your fresh secure link
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom:24px;">
+              <p style="margin:0;font-size:16px;line-height:1.6;color:#b6c0cf;">
+                You asked to pick up where you left off. Click the button below to continue securely.
+                Your progress is saved.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:8px 0 24px;">
+              <a href="${safeLink}"
+                 style="display:inline-block;background:#16A34A;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;font-size:16px;">
+                Continue securely
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom:8px;">
+              <p style="margin:0;font-size:13px;line-height:1.6;color:#7a8699;">
+                Or paste this link into your browser:
+              </p>
+              <p style="margin:6px 0 0;font-size:13px;line-height:1.5;color:#b6c0cf;word-break:break-all;">
+                <a href="${safeLink}" style="color:#16A34A;text-decoration:underline;">${safeLink}</a>
+              </p>
+              <p style="color:#888; font-size:13px; margin-top:16px;">
+                This secure link expires in 1 hour and can be used once. If you didn&rsquo;t request it,
+                you can ignore this email.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:32px;border-top:1px solid rgba(255,255,255,0.06);">
+              <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#7a8699;">
+                hello@readypack.co.uk &middot; MOFE LTD &middot; Company No. 16633320 &middot; Not legal advice — documentation support.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export function buildDeliveryEmail({
   magicLink,
   customerName,
