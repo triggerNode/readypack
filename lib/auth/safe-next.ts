@@ -14,5 +14,8 @@ export function safeNextPath(next: string | null | undefined, fallback = '/'): s
   if (!next.startsWith('/')) return fallback
   // Reject protocol-relative ("//host") and backslash tricks ("/\\host").
   if (next.startsWith('//') || next.startsWith('/\\')) return fallback
+  // Reject control characters (tab/newline/etc.) — URL parsers strip these,
+  // which can change where the path resolves; only allow printable ASCII.
+  if (!/^\/[\x20-\x7E]*$/.test(next)) return fallback
   return next
 }

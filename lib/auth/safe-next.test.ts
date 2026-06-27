@@ -33,4 +33,10 @@ describe('safeNextPath', () => {
     expect(safeNextPath('start')).toBe('/')
     expect(safeNextPath('javascript:alert(1)')).toBe('/')
   })
+
+  it('rejects control characters (tab, newline)', () => {
+    expect(safeNextPath('/\tevil.com')).toBe('/')
+    expect(safeNextPath('/\nevil.com')).toBe('/')
+    expect(safeNextPath('/start\r\nSet-Cookie: x=1')).toBe('/')
+  })
 })

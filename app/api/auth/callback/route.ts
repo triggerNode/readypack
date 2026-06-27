@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { safeNextPath } from '@/lib/auth/safe-next'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const next = requestUrl.searchParams.get('next') ?? '/'
+  // Guard against open redirect — only ever bounce to a same-origin path.
+  const next = safeNextPath(requestUrl.searchParams.get('next'))
   const origin = requestUrl.origin
 
   if (code) {
