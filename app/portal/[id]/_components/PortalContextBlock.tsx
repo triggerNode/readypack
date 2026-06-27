@@ -74,23 +74,31 @@ function ctxView(
         quiet: true,
         action: null,
       }
-    case 'ready':
+    case 'ready': {
+      // When a change request is already in flight on some docs while others
+      // still await review, acknowledge the revision without telling the
+      // client to "do nothing" — there are still drafts to review below.
+      const readyBody =
+        revisionCount > 0
+          ? `We’ve got your change request on ${revisionCount} ${plural(revisionCount, 'document', 'documents')} — we’ll email you when the updated ${plural(revisionCount, 'version is', 'versions are')} ready. The rest are ready for you to review below.`
+          : 'Review each one below. Approve what you’re happy with, or request a change.'
       return {
         icon: <FileCheck2 width={24} height={24} aria-hidden />,
         tone: 'toneReady',
         title: 'Your documents are ready to review',
-        body: 'Review each one below. Approve what you’re happy with, or request a change.',
+        body: readyBody,
         quiet: false,
         action: { label: 'Start review', variant: 'btnPrimary', kind: 'scroll', target: 'draft' },
       }
+    }
     case 'revising':
       return {
         icon: <RotateCcw width={24} height={24} aria-hidden />,
         tone: 'toneRev',
         title: `We’re revising ${revisionCount} ${plural(revisionCount, 'document', 'documents')}`,
-        body: `You’re all set for now — we’ll let you know the moment the updated ${plural(revisionCount, 'version is', 'versions are')} ready to approve.`,
+        body: `We’ve got your changes. You’re all set for now — we’ll email you the moment the updated ${plural(revisionCount, 'version is', 'versions are')} ready to approve.`,
         quiet: true,
-        action: { label: 'View progress', variant: 'btnSurface', kind: 'scroll', target: 'revision' },
+        action: null,
       }
     case 'complete':
       return {

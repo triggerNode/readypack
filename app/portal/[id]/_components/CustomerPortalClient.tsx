@@ -633,7 +633,9 @@ export function CustomerPortalClient({
                 </span>
               ) : (
                 <span className={styles.listHeadCount}>
-                  {total} of {total} · Pack {packReference}
+                  {overall === 'preparing'
+                    ? `Pack ${packReference}`
+                    : `${total} of ${total} · Pack ${packReference}`}
                 </span>
               )}
             </div>
