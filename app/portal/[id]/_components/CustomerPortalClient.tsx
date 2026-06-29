@@ -183,6 +183,11 @@ export function CustomerPortalClient({
       timerRef.current = setTimeout(tick, delay)
     }
     const tick = async () => {
+      // Pause while the tab is hidden — a backgrounded portal shouldn't keep
+      // polling every 4-12s (real server load at scale). We simply stop
+      // re-arming the loop; the visibilitychange handler resumes with a fresh
+      // poll the moment the tab is in the foreground again.
+      if (typeof document !== 'undefined' && document.hidden) return
       try {
         const res = await fetch(`/api/portal/${orderId}`, {
           cache: 'no-store',
@@ -201,10 +206,19 @@ export function CustomerPortalClient({
       }
     }
 
+    // Resume immediately when the tab returns to the foreground.
+    const onVisibility = () => {
+      if (document.hidden) return
+      if (timerRef.current) clearTimeout(timerRef.current)
+      void tick()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
     schedule(feed.phase.state)
     return () => {
       cancelled = true
       controller.abort()
+      document.removeEventListener('visibilitychange', onVisibility)
       if (timerRef.current) clearTimeout(timerRef.current)
     }
     // Re-arm whenever the phase changes so the cadence follows it.
