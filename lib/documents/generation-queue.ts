@@ -10,6 +10,7 @@
 // is idempotent and resumable, so re-invocation converges rather than duplicating.
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { INTERNAL_SECRET_HEADER, getInternalSecret } from '@/lib/auth/internal-secret'
 import { waitUntil } from '@vercel/functions'
 
 const DOC_TOTAL = 9
@@ -97,7 +98,10 @@ export function kickWorker(orderId: string): void {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const delivered = fetch(`${appUrl}/api/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      [INTERNAL_SECRET_HEADER]: getInternalSecret() ?? '',
+    },
     body: JSON.stringify({ order_id: orderId, _internal: true }),
   })
     .then(() => undefined)

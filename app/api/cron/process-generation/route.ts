@@ -23,13 +23,15 @@ export const maxDuration = 60
 const STUCK_AFTER_MS = 15 * 60 * 1000
 
 export async function GET(request: NextRequest) {
-  // Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}` when CRON_SECRET is
-  // configured. Reject anything else so the endpoint can't be poked publicly.
+  // Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`. Fail CLOSED: if the
+  // secret is not configured, refuse rather than leave the worker-kick endpoint
+  // open to anonymous abuse (runaway Anthropic spend). Reject any mismatch.
   const secret = process.env.CRON_SECRET
-  if (secret) {
-    if (request.headers.get('authorization') !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!secret) {
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+  }
+  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const { data: jobs } = await supabaseAdmin

@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-// The only email address permitted to access /admin
-export const ADMIN_EMAIL = 'olutags@gmail.com'
+// The only email address permitted to access /admin. Sourced from the
+// ADMIN_EMAIL env var; the literal fallback keeps existing deploys working.
+export const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'olutags@gmail.com'
 
 /**
  * Returns the current authenticated user, or null if not signed in.

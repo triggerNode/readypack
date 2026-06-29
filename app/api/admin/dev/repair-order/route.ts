@@ -7,6 +7,8 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
+import { devToolsBlocked } from '@/lib/dev-guard'
+import { INTERNAL_SECRET_HEADER, getInternalSecret } from '@/lib/auth/internal-secret'
 import { generateMagicLink } from '@/lib/auth/magic-link'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
@@ -36,6 +38,9 @@ function isRepairAction(value: unknown): value is RepairAction {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = devToolsBlocked()
+  if (blocked) return blocked
+
   const admin = await requireAdmin()
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -175,7 +180,10 @@ export async function POST(request: NextRequest) {
 
     const genRes = await fetch(`${appUrl}/api/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        [INTERNAL_SECRET_HEADER]: getInternalSecret() ?? '',
+      },
       body: JSON.stringify({ order_id: order.id, _internal: true }),
     })
     if (!genRes.ok) {

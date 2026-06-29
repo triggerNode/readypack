@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-
-const ADMIN_EMAIL = 'olutags@gmail.com'
+import { ADMIN_EMAIL } from '@/lib/auth'
+import { devToolsBlocked } from '@/lib/dev-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,6 +10,9 @@ export const dynamic = 'force-dynamic'
 type Plan = 'solo' | 'procurement_ready' | 'adviser'
 
 export async function POST(req: NextRequest) {
+  const blocked = devToolsBlocked()
+  if (blocked) return blocked
+
   // 1. Auth check
   const supabase = await createClient()
   const {
@@ -235,7 +238,7 @@ function buildTestAnswers(upToSection: number): Record<string, unknown> {
   if (upToSection >= 7)
     all['7'] = {
       governance_owner: 'internal_owner',
-      governance_contact: { name: 'Olu Tayo', job_title: 'Founder', email: ADMIN_EMAIL },
+      governance_contact: { name: 'Test User', job_title: 'Founder', email: 'test@example.com' },
       has_ropa: 'No',
       has_dpia: 'No',
       has_ai_policy: 'No',

@@ -18,6 +18,8 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { ADMIN_EMAIL } from '@/lib/auth'
+import { INTERNAL_SECRET_HEADER, verifyInternalSecret } from '@/lib/auth/internal-secret'
 import { anthropic } from '@/lib/anthropic'
 import { parseModelJson } from '@/lib/documents/parse-model-json'
 import { generateProcurementMemo } from '@/lib/documents/generate-procurement-memo'
@@ -103,27 +105,20 @@ export async function POST(request: NextRequest) {
 
     // Auth guard. Either:
     //   • an authenticated admin (external request), OR
-    //   • an internal fire-and-forget trigger from the same server (intake submit)
-    // The _internal path additionally verifies the request originates from this
-    // same host. Pragmatic MVP guard — not a production-grade signed-request scheme.
+    //   • an internal trigger from this same deployment (queue kick / cron /
+    //     admin repair), proven by a server-only shared secret header.
+    // The secret can't be produced by an outside caller, so the _internal path
+    // is no longer reachable by simply POSTing { _internal: true } to the site.
     const isInternalTrigger = body._internal === true
     if (isInternalTrigger) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-      let expectedHost = ''
-      try {
-        expectedHost = new URL(appUrl).host
-      } catch {
-        expectedHost = ''
-      }
-      const requestHost = request.headers.get('host') ?? ''
-      if (!expectedHost || requestHost !== expectedHost) {
+      if (!verifyInternalSecret(request.headers.get(INTERNAL_SECRET_HEADER))) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     } else {
       // External request — must be the authenticated admin.
       const { getCurrentUser } = await import('@/lib/auth')
       const user = await getCurrentUser()
-      if (!user || user.email !== 'olutags@gmail.com') {
+      if (!user || user.email !== ADMIN_EMAIL) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }

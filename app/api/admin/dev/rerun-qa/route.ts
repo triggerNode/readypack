@@ -15,8 +15,8 @@ import type {
 } from '@/types/database'
 import type { SpecificDocumentContent } from '@/lib/documents/content-schemas'
 import type { PromptIntake } from '@/lib/documents/prompts/types'
-
-const ADMIN_EMAIL = 'olutags@gmail.com'
+import { ADMIN_EMAIL } from '@/lib/auth'
+import { devToolsBlocked } from '@/lib/dev-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,6 +36,9 @@ function asBool(o: Record<string, unknown> | undefined, key: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const blocked = devToolsBlocked()
+  if (blocked) return blocked
+
   const supabase = await createClient()
   const {
     data: { user },

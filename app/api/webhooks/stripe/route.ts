@@ -31,14 +31,20 @@ function isTier(value: unknown): value is TierKey {
 }
 
 async function findOrCreateAuthUser(email: string): Promise<string> {
-  // listUsers paginates — acceptable for MVP, flagged for optimisation when user count grows.
-  // TODO: replace with a direct query on auth.users via SQL once volume justifies it.
-  const { data, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-  if (listError) {
-    throw new Error(`Failed to list auth users: ${listError.message}`)
+  // Direct indexed lookup on public.users (populated for every customer via the
+  // auth trigger + the upsert below). This is O(1) and — unlike the previous
+  // listUsers() with no perPage (default 50) — cannot silently miss an existing
+  // user past a page boundary and create a duplicate account + orphan order.
+  const normalized = email.toLowerCase()
+  const { data: existing, error: lookupError } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('email', normalized)
+    .limit(1)
+    .maybeSingle()
+  if (lookupError) {
+    throw new Error(`Failed to look up user: ${lookupError.message}`)
   }
-
-  const existing = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())
   if (existing) {
     return existing.id
   }
@@ -96,9 +102,11 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
   const userId = await findOrCreateAuthUser(email)
 
   // Trigger on auth.users normally creates the public.users row; upsert protects against race.
+  // Store the normalised (lower-cased) email so the findOrCreateAuthUser lookup
+  // above matches reliably regardless of how the customer typed it at checkout.
   const { error: userUpsertError } = await supabaseAdmin
     .from('users')
-    .upsert({ id: userId, email }, { onConflict: 'id' })
+    .upsert({ id: userId, email: email.toLowerCase() }, { onConflict: 'id' })
   if (userUpsertError) {
     throw new Error(`User upsert failed: ${userUpsertError.message}`)
   }
@@ -177,8 +185,10 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
     throw new Error(`Resend send failed: ${sendResult.error.message}`)
   }
 
+  // Log IDs only — no customer email/PII in function logs (accessible to anyone
+  // with Vercel project access / log integrations).
   console.log(
-    `[webhook] processed session ${stripeSessionId}: user ${userId}, order ${order.id}, email sent to ${email}`,
+    `[webhook] processed session ${stripeSessionId}: user ${userId}, order ${order.id}, delivery email sent`,
   )
 }
 

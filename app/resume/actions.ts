@@ -15,15 +15,20 @@ const emailSchema = z.string().trim().toLowerCase().email()
 
 /** True if an auth user already exists for this email. */
 async function authUserExists(email: string): Promise<boolean> {
-  // listUsers paginates (default 50/page). Bump the page size so pre-launch
-  // volume is fully covered; a later customer must still match. TODO (D2):
-  // replace with a direct indexed lookup (public.users by email) so this is
-  // O(1) and cannot miss at scale.
-  const { data, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+  // Direct indexed lookup on public.users (populated for every customer). O(1)
+  // and cannot miss at scale the way the previous listUsers({ perPage: 1000 })
+  // could once user count crossed the cap. `email` is already normalised by the
+  // caller's emailSchema (.toLowerCase()).
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .limit(1)
+    .maybeSingle()
   if (error) {
-    throw new Error(`Failed to list auth users: ${error.message}`)
+    throw new Error(`Failed to look up user: ${error.message}`)
   }
-  return data.users.some((u) => u.email?.toLowerCase() === email)
+  return data !== null
 }
 
 /**
