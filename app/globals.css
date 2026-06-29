@@ -179,6 +179,20 @@
   --qz-nav-bg:        rgba(248, 250, 252, 0.82);
 }
 
+/* Light-mode opaque surfaces.
+   --bg-secondary/--bg-tertiary are translucent (rgba black) in light mode — fine
+   for inline fields, but any element that floats over or sticks above OTHER
+   content would let it bleed through (the popover showed the question behind it;
+   the sticky mobile progress strip let the section heading show through with the
+   green fill cutting across). Force these onto an opaque surface in light mode.
+   Dark mode is unaffected (it uses translucent-white over a dark page). */
+[data-theme="light"] .qz-help-popover,
+[data-theme="light"] .qz-toast,
+[data-theme="light"] .qz-mobile-strip,
+[data-theme="light"] .qz-sidebar {
+  background: #ffffff;
+}
+
 /* ─────────────────────────────────────────
    Base styles
 ───────────────────────────────────────── */
