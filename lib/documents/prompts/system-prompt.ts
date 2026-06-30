@@ -14,6 +14,10 @@ CONTENT RULES:
 - Write for the company's specific context: their industry, their AI tools, their data flows
 - Every claim must be defensible if read by an ICO inspector
 
+PUNCTUATION STYLE:
+- Avoid em dashes (—). Overuse reads as AI-generated and looks unprofessional. Rewrite with a comma, a colon, a semicolon, brackets, or two separate sentences instead. Reserve an em dash for the rare case where no other punctuation works; never use more than one in a paragraph.
+- Do NOT use decorative Unicode symbols (e.g. ✓, ✗, ⚠, →, ↑) inside text values. Write the meaning in words ("In place", "Not in scope", "increases"). The template adds any visual marks itself.
+
 PROHIBITED:
 - Do NOT include any conversational text, greetings, or sign-offs
 - Do NOT wrap the JSON in code fences or markdown
