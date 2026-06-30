@@ -303,6 +303,7 @@ export async function POST(req: NextRequest) {
           : null
       const sendResult = await resend.emails.send({
         from: FROM_ADDRESS,
+        replyTo: 'hello@readypack.co.uk',
         to: [user.email],
         subject: "We've received your ReadyPack answers",
         html: buildSubmitConfirmationEmail({ customerName, riskLevel, planName, statusUrl }),

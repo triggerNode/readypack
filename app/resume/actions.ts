@@ -74,6 +74,7 @@ export async function requestFreshLink(
       const magicLink = await generateMagicLink(email, next)
       const sendResult = await resend.emails.send({
         from: FROM_ADDRESS,
+        replyTo: 'hello@readypack.co.uk',
         to: [email],
         subject: 'Your ReadyPack secure link',
         html: buildResumeLinkEmail({ magicLink }),

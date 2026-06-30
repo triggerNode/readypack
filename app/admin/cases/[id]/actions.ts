@@ -186,6 +186,7 @@ export async function requestMoreInfoAction(
     const customerName = c.trading_name || c.company_name || null
     const sendResult = await resend.emails.send({
       from: FROM_ADDRESS,
+      replyTo: 'hello@readypack.co.uk',
       to: [c.customer_email],
       subject: 'We need a bit more information for your ReadyPack order',
       html: buildRequestInfoEmail({
@@ -742,6 +743,7 @@ export async function releaseRevisionAction(
         : `${rev.documentTypes.length} documents`
     const sendResult = await resend.emails.send({
       from: FROM_ADDRESS,
+      replyTo: 'hello@readypack.co.uk',
       to: [c.customer_email],
       subject: 'Your revised ReadyPack document is ready to review',
       html: buildRevisedDocReadyEmail({

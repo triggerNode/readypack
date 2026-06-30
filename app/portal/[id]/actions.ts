@@ -44,6 +44,7 @@ async function sendPackCompleteEmail(orderId: string): Promise<void> {
     const magicLink = await generateMagicLink(customer.email, `/portal/${orderId}`)
     await resend.emails.send({
       from: FROM_ADDRESS,
+      replyTo: 'hello@readypack.co.uk',
       to: [customer.email],
       subject: 'Your ReadyPack compliance pack is complete',
       html: buildPackCompleteEmail({

@@ -147,6 +147,7 @@ export async function POST(
 
     const sendResult = await resend.emails.send({
       from: FROM_ADDRESS,
+      replyTo: 'hello@readypack.co.uk',
       to: [customer.email],
       subject: 'Your ReadyPack compliance documents are ready for review',
       html: buildDeliveryEmail({

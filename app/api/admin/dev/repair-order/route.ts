@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
       }
       const sendResult = await resend.emails.send({
         from: FROM_ADDRESS,
+        replyTo: 'hello@readypack.co.uk',
         to: [customer.email],
         subject: 'Your ReadyPack intake questionnaire is ready',
         html: buildMagicLinkEmail({
@@ -148,6 +149,7 @@ export async function POST(request: NextRequest) {
       }
       const sendResult = await resend.emails.send({
         from: FROM_ADDRESS,
+        replyTo: 'hello@readypack.co.uk',
         to: [customer.email],
         subject: 'Your ReadyPack compliance documents are ready for review',
         html: buildDeliveryEmail({

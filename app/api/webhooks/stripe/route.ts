@@ -177,6 +177,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
 
   const sendResult = await resend.emails.send({
     from: FROM_ADDRESS,
+    replyTo: 'hello@readypack.co.uk',
     to: [email],
     subject: 'Your ReadyPack intake questionnaire is ready',
     html: buildMagicLinkEmail({ magicLink, planName: TIER_DISPLAY[plan], packReference: displayRef }),
