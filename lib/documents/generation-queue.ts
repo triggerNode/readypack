@@ -95,6 +95,16 @@ export async function enqueueGeneration(orderId: string): Promise<EnqueueResult>
  * Never throws.
  */
 export function kickWorker(orderId: string): void {
+  // Test-only kill-switch. When the E2E suite runs the routing/gating layer it
+  // needs to prove that generation gets *triggered* for auto-gen cases (a queued
+  // job row is written by enqueueGeneration) WITHOUT actually spending Claude
+  // credit or depending on a reliable Supabase Storage upload. This flag is only
+  // ever set by the Playwright webServer (see playwright.config.ts) and is unset
+  // whenever RUN_REAL_GENERATION=1, so the deliberate end-to-end generation layer
+  // and production are entirely unaffected. With it set, the 'queued' job stays
+  // queued (jobCount still proves the gating decision) and no worker fires.
+  if (process.env.E2E_SKIP_REAL_GENERATION === '1') return
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const delivered = fetch(`${appUrl}/api/generate`, {
     method: 'POST',

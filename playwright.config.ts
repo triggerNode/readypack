@@ -24,20 +24,28 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    // Mints the autonomous admin login state before admin tests run.
+    // Mints the autonomous admin login state before the authed project runs.
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
-    // Public, logged-out sweep (broken links, page loads, admin lock-out).
+    // Layers A + B + the portal/questionnaire UI sweep. All logged-out by
+    // default; each spec that needs a customer mints its own magic-link session
+    // (see e2e/lib/journey.ts customerContext), so no shared auth state is used.
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: [/auth\.setup\.ts/, /admin-journey\.spec\.ts/, /scenarios\.spec\.ts/, /full-journey\.spec\.ts/, /portal\.spec\.ts/, /smoke2-paid\.spec\.ts/, /verify-st2-5\.spec\.ts/],
+      testMatch: /(a-public-sweep|b-routing-gating|portal-ui)\.spec\.ts/,
     },
-    // Logged-in admin journeys, reusing the saved admin session.
+    // Admin-authed specs (reuse the saved admin session). Two members:
+    //  • d-admin-actions — FREE checks of admin case-page controls (e.g. the
+    //    "Generate Pack" button triggers generation). Uses the kill-switch, so it
+    //    runs in normal free runs and skips itself when RUN_REAL_GENERATION=1.
+    //  • c-generation-lifecycle — Layer C, the real generation lifecycle. GATED
+    //    behind RUN_REAL_GENERATION=1 (the spec skips itself otherwise). Its
+    //    admin-side steps reuse this session; customer steps mint their own.
     {
-      name: 'admin',
+      name: 'authed',
       use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/admin.json' },
       dependencies: ['setup'],
-      testMatch: /(admin-journey|scenarios|full-journey|portal|smoke2-paid|verify-st2-5)\.spec\.ts/,
+      testMatch: /(c-generation-lifecycle|d-admin-actions)\.spec\.ts/,
     },
   ],
   webServer: {
@@ -45,5 +53,18 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000,
+    // Test-only generation kill-switch (see lib/documents/generation-queue.ts →
+    // kickWorker). ON by default so the routing/gating layer (b-routing-gating)
+    // proves generation is *triggered* without spending Claude credit or waiting
+    // on flaky Storage uploads. Automatically OFF when RUN_REAL_GENERATION=1, so
+    // the deliberate end-to-end layer (Layer C) generates real packs.
+    // NOTE: only applies to a server Playwright STARTS. If you already have your
+    // own `npm run dev` running, reuseExistingServer reuses it and this env won't
+    // take effect — start Layer B against a clean managed server (or export the
+    // flag in that dev shell).
+    env: {
+      ...process.env,
+      E2E_SKIP_REAL_GENERATION: process.env.RUN_REAL_GENERATION === '1' ? '0' : '1',
+    },
   },
 })
