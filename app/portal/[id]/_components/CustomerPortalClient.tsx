@@ -128,21 +128,52 @@ function cardsFromFeed(feed: PortalFeed): PortalCard[] {
   })
 }
 
-// Fire individual downloads for a set of documents (staggered so the browser
-// doesn't drop concurrent navigations).
-function triggerBulkDownload(items: ReadonlyArray<{ downloadUrl: string | null; fileUrl: string | null }>) {
-  items.forEach((doc, i) => {
+// Download a set of documents reliably. Firing N anchor navigations on short
+// timers made the browser silently abort one of them (observed: a 9-doc pack
+// consistently dropped one file with a "network error / resume" — a rapid-
+// download throttle, not a real network fault). Instead we fetch each file to a
+// blob and save it sequentially (awaited), which the browser treats as a
+// completed download rather than a racing navigation. Storage sends
+// `access-control-allow-origin: *`, so the cross-origin fetch is allowed; if a
+// fetch ever fails we fall back to a direct anchor navigation for that one file.
+function filenameFromUrl(url: string): string | undefined {
+  const m = /[?&]download=([^&]+)/.exec(url)
+  return m ? decodeURIComponent(m[1]) : undefined
+}
+
+async function saveViaAnchor(url: string, filename?: string) {
+  const a = document.createElement('a')
+  a.href = url
+  if (filename) a.download = filename
+  a.rel = 'noopener noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
+async function triggerBulkDownload(
+  items: ReadonlyArray<{ downloadUrl: string | null; fileUrl: string | null }>,
+) {
+  for (const doc of items) {
     const url = doc.downloadUrl ?? doc.fileUrl
-    if (!url) return
-    setTimeout(() => {
-      const a = document.createElement('a')
-      a.href = url
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-    }, i * 400)
-  })
+    if (!url) continue
+    const filename = filenameFromUrl(url)
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      const blob = await res.blob()
+      const objUrl = URL.createObjectURL(blob)
+      await saveViaAnchor(objUrl, filename)
+      setTimeout(() => URL.revokeObjectURL(objUrl), 4000)
+    } catch {
+      // Cross-origin/network hiccup — fall back to a direct navigation so this
+      // file still downloads (Content-Disposition on the signed URL names it).
+      await saveViaAnchor(url)
+    }
+    // A short gap keeps the browser's download manager comfortable across many
+    // files without the rapid-fire drop.
+    await new Promise((r) => setTimeout(r, 250))
+  }
 }
 
 export function CustomerPortalClient({
@@ -378,7 +409,9 @@ export function CustomerPortalClient({
   }
   const scrollToTop = () =>
     window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' })
-  const handleDownloadAll = () => triggerBulkDownload(finalDocs)
+  const handleDownloadAll = () => {
+    void triggerBulkDownload(finalDocs)
+  }
 
   // ── Selection helpers ────────────────────────────────────────────
   const toggleSelect = (docType: DocumentType) => {
@@ -1537,8 +1570,7 @@ function DownloadAllButton({
 
   const handleDownload = () => {
     setBusy(true)
-    triggerBulkDownload(documents)
-    setTimeout(() => setBusy(false), Math.max(800, documents.length * 450))
+    void triggerBulkDownload(documents).finally(() => setBusy(false))
   }
 
   return (

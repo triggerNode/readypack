@@ -772,9 +772,15 @@ const s = StyleSheet.create({
     flexGrow: 1,
   },
   coverDocLogo: {
-    maxWidth: 300,
+    // Height-only: react-pdf sizes the width from the logo's own aspect ratio and
+    // the box hugs the image, so it sits hard against the left margin. (The old
+    // maxWidth:300 + objectFit:'contain' let a square logo float centred inside a
+    // 300pt-wide box — the "awkward, not-quite-left" position.) maxWidth guards a
+    // freak ultra-wide upload; alignSelf keeps the box left even if a parent ever
+    // stretches it.
     height: 72,
-    objectFit: 'contain',
+    maxWidth: 300,
+    alignSelf: 'flex-start',
     marginBottom: 28,
   },
   coverDocLogoPlaceholder: {

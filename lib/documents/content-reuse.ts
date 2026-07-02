@@ -17,11 +17,24 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import type { DocumentType } from '@/types/database'
 import type { SpecificDocumentContent } from './content-schemas'
 
+// Bump this whenever the generation LOGIC changes in a way that should show up
+// in output — a prompt edit, a template/context change, a new field mapping.
+// It's part of the fingerprint, so bumping it invalidates every prior cached
+// generation: the next run for any submission regenerates fresh (and stores the
+// new version), instead of cloning stale content that predates the change.
+// History:
+//   2026-07-02: vendor resolution in generation-context (kill "Vendor under
+//               review") + ai-use-statement prompt guardrail.
+export const GENERATION_LOGIC_VERSION = '2026-07-02.1'
+
 export interface ContentFingerprint {
   // Environment is part of the fingerprint so test-generated content can never
   // be reused for production customers (and vice versa), even when every other
   // intake parameter matches.
   env: string
+  // Generation-logic version — see GENERATION_LOGIC_VERSION. Guarantees a prompt
+  // or template change is never masked by content reuse.
+  logic_version: string
   industry_sector: string
   employee_count_band: string
   ai_tool_count: number
@@ -82,6 +95,7 @@ export function buildFingerprint(
 
   return {
     env,
+    logic_version: GENERATION_LOGIC_VERSION,
     industry_sector: industry,
     employee_count_band: employees,
     ai_tool_count: aiToolCount,
