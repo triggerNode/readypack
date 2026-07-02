@@ -191,15 +191,25 @@ export function ReleaseForReviewButton({
   )
 }
 
-// Generate Pack — kicks off the document generation pipeline. Retained for
-// callers that need it; not rendered in the design's header button row.
+// Generate Pack — kicks off the document generation pipeline. Rendered in the
+// case header for held cases (high/critical) that skip auto-generation, and for
+// cases whose generation failed (0 documents). Low/medium cases auto-generate,
+// so the button is hidden once documents exist (see CaseHeader documentCount).
 export function GeneratePackButton({ caseId }: { caseId: string }) {
   const [result, formAction] = useFormState(triggerGenerationAction, null)
   return (
     <form action={formAction} style={FORM_STACK}>
       <input type="hidden" name="caseId" value={caseId} />
       <SubmitButton variant="primary">Generate Pack</SubmitButton>
-      <FieldError result={result} />
+      {result?.success ? (
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--accent-primary)' }}>
+          Generation started — this can take a few minutes. Refresh to see the documents appear.
+        </p>
+      ) : result && !result.success ? (
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--danger)' }} role="alert">
+          {result.error}
+        </p>
+      ) : null}
     </form>
   )
 }

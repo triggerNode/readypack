@@ -226,7 +226,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
-        <CaseHeader c={caseRow} />
+        <CaseHeader c={caseRow} documentCount={documents.length} />
 
         <Tabs.Root defaultValue="overview">
           <Tabs.List>

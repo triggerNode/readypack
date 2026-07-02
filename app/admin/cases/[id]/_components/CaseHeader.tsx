@@ -7,11 +7,14 @@ import {
   ReleaseForReviewButton,
   EscalateCaseForm,
   RequestMoreInfoForm,
+  GeneratePackButton,
 } from './ActionForms'
 import styles from '../case-detail.module.css'
 
 type Props = {
   c: CaseRow
+  /** Number of generated documents for this case; 0 = pack not built yet. */
+  documentCount: number
 }
 
 function formatOrderedAt(iso: string): string {
@@ -23,8 +26,11 @@ function formatOrderedAt(iso: string): string {
   return `Ordered ${day} ${month} ${year}, ${time}`
 }
 
-export function CaseHeader({ c }: Props) {
+export function CaseHeader({ c, documentCount }: Props) {
   const name = customerDisplayName(c)
+  // Held cases (high/critical) skip auto-generation, and failed runs leave 0
+  // documents — surface "Generate Pack" until the pack has actually been built.
+  const packNotGenerated = documentCount === 0
   // The pack has already been released to the customer once it has reached (or
   // passed) the customer-review stage — relabel the button to "Resend" then.
   const alreadyReleased =
@@ -58,6 +64,7 @@ export function CaseHeader({ c }: Props) {
         </div>
 
         <div className={styles.caseheadRow2}>
+          {packNotGenerated ? <GeneratePackButton caseId={c.id} /> : null}
           <ReleaseForReviewButton caseId={c.id} alreadyReleased={alreadyReleased} />
           <RequestMoreInfoForm caseId={c.id} />
           <EscalateCaseForm caseId={c.id} />

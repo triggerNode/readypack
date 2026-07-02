@@ -128,10 +128,16 @@ export async function requestMoreInfoAction(
 ): Promise<ActionResult> {
   try {
     const admin = await requireAdmin()
+    // The header form's default "Whole case" option submits documentType="".
+    // Coerce empty string to undefined so z.enum().optional() accepts it (an
+    // empty string is not a valid enum member and previously failed validation).
+    const documentTypeRaw = formData.get('documentType')
+    const documentType =
+      typeof documentTypeRaw === 'string' && documentTypeRaw.length > 0 ? documentTypeRaw : undefined
     const parsed = RequestMoreInfoSchema.safeParse({
       caseId: formData.get('caseId'),
       message: formData.get('message'),
-      documentType: (formData.get('documentType') as string | null) ?? undefined,
+      documentType,
     })
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
