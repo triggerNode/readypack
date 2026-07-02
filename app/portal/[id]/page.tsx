@@ -34,7 +34,11 @@ export default async function CustomerPortalPage({ params }: { params: Params })
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`/admin/login?error=portal_signin&next=${encodeURIComponent(`/portal/${orderId}`)}`)
+    // No session (expired/one-time link, or returning on a different device).
+    // Send them to the customer re-entry screen — "enter your email, we'll send a
+    // fresh link" — NOT the admin login. It preserves `next` so the fresh link
+    // lands them right back on this portal.
+    redirect(`/resume?next=${encodeURIComponent(`/portal/${orderId}`)}`)
   }
 
   // ── 2. Authorise: order.user_id MUST equal user.id ──────────────
@@ -54,8 +58,11 @@ export default async function CustomerPortalPage({ params }: { params: Params })
   if (!order) notFound()
 
   if (order.user_id !== user.id) {
-    // Deliberately uninformative redirect to avoid confirming the order id.
-    redirect('/admin/login?error=portal_forbidden')
+    // Signed in as someone else (e.g. an admin session in the same browser, or a
+    // shared device). Send them to the customer re-entry screen to request a fresh
+    // link for THEIR pack — never the admin login. `switch_account` tells /resume
+    // NOT to bounce the wrong session straight back here (which would loop).
+    redirect(`/resume?next=${encodeURIComponent(`/portal/${orderId}`)}&reason=switch_account`)
   }
 
   // ── 3. Customer identity (for the header) + the initial feed ────

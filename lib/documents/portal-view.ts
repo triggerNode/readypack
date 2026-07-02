@@ -41,9 +41,15 @@ export function deriveOverall(
   // 1. The customer owes us an answer — highest priority (matches portalMode).
   if (hasOpenInfoRequests || packState === 'action') return 'action'
 
-  // 2. Every document final → complete (terminal celebratory state).
+  // 2. Every document final → complete (terminal celebratory state). This is
+  //    driven by the per-card final COUNT, not the server packState alone: the
+  //    "Download your pack" CTA lives in this state, so it must not appear until
+  //    every card is actually final. Trusting pack['complete'] while the local
+  //    per-card set is still catching up (right after "approve remaining", before
+  //    the poll reconciles) made the bulk download grab only the already-final
+  //    subset. finaliseOrderPack only rolls the order to complete once EVERY doc
+  //    is final anyway, so a genuinely-complete order always satisfies this.
   if (counts.total > 0 && counts.finalCount === counts.total) return 'complete'
-  if (packState === 'complete') return 'complete'
 
   // 3. A specialist is reviewing pre-release (genuine internal QA).
   if (packState === 'review') return 'escalated'

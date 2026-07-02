@@ -22,16 +22,27 @@ type Props = {
 export default async function ResumePage({ searchParams }: Props) {
   const { next: rawNext, reason } = await searchParams
   const next = safeNextPath(rawNext, '/start')
+  const switchAccount = reason === 'switch_account'
 
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (user) {
-    // Already signed in here — straight back in, no fresh link required.
+  // A live session normally means "just go back in". The exception is
+  // switch_account: the session on this device is the WRONG one (it just failed
+  // the portal owner check), so forwarding them back would loop — show the form so
+  // they can request a link for their own account instead.
+  if (user && !switchAccount) {
     redirect(next)
   }
 
-  return <ResumeForm next={next} expired={reason === 'link_expired'} />
+  return (
+    <ResumeForm
+      next={next}
+      expired={reason === 'link_expired'}
+      switchAccount={switchAccount}
+      signedInEmail={user?.email ?? null}
+    />
+  )
 }

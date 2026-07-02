@@ -110,6 +110,29 @@ export function buildGenerationContext(input: GenerationContextInput): Generatio
     { day: 'numeric', month: 'long', year: 'numeric' },
   )
 
+  // Resolve a concrete vendor for every AI tool. The intake captures a tool_name
+  // but usually leaves the per-tool `vendor` null; the model, correctly told not
+  // to invent vendors, then writes "Vendor under review" in the AI Systems table.
+  // The vendor IS known — it's in the vendors[] list (same names) and, for
+  // standalone SaaS tools, the tool name itself — so pair them here and never
+  // hand the model a blank vendor in a customer-facing compliance document.
+  const normaliseName = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const resolveToolVendor = (tool: AiTool): string => {
+    if (tool.vendor && tool.vendor.trim()) return tool.vendor.trim()
+    const toolNorm = normaliseName(tool.tool_name || '')
+    if (toolNorm) {
+      const match = vendors.find((v) => {
+        const vnorm = normaliseName(v.vendor_name || '')
+        return vnorm !== '' && (vnorm === toolNorm || vnorm.includes(toolNorm) || toolNorm.includes(vnorm))
+      })
+      if (match?.vendor_name) return match.vendor_name
+    }
+    // Fall back to the tool's own name — for standalone SaaS tools the product IS
+    // the vendor (Otter.ai, Notion AI). An accurate self-reference beats a
+    // placeholder; a truly nameless entry reads as an in-house build.
+    return (tool.tool_name && tool.tool_name.trim()) || 'In-house / bespoke'
+  }
+
   // Redact raw PII from the intake passed to the LLM. The actual values are
   // re-applied via deepReplacePlaceholders after parsing the LLM response.
   const intake: PromptIntake = {
@@ -119,7 +142,7 @@ export function buildGenerationContext(input: GenerationContextInput): Generatio
     employeeCount,
     aiTools: aiTools.map((t) => ({
       tool_name: t.tool_name,
-      vendor: t.vendor,
+      vendor: resolveToolVendor(t),
       purpose: t.purpose,
       internal_or_customer_facing: t.internal_or_customer_facing,
       risk_classification: t.risk_classification,

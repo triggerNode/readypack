@@ -8,14 +8,31 @@ type Props = {
   next: string
   /** True when we arrived here from a consumed/expired link. */
   expired: boolean
+  /** True when a different account is signed in on this device (owner-check fail). */
+  switchAccount?: boolean
+  /** Email of the currently signed-in (wrong) account, for a helpful note. */
+  signedInEmail?: string | null
 }
 
 type Status = 'idle' | 'sending' | 'sent' | 'error'
 
-export function ResumeForm({ next, expired }: Props) {
+export function ResumeForm({ next, expired, switchAccount = false, signedInEmail = null }: Props) {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+
+  // Tailor the copy to where they're headed: their compliance pack (portal) vs
+  // the intake questionnaire.
+  const isPortal = next.startsWith('/portal')
+  const noun = isPortal ? 'pack' : 'questionnaire'
+  const heading = switchAccount
+    ? `Enter your ${noun}'s email`
+    : expired
+      ? 'That link has expired'
+      : `Return to your ${noun}`
+  const body = switchAccount
+    ? `You're currently signed in${signedInEmail ? ` as ${signedInEmail}` : ''}, which isn't the account for this ${noun}. Enter the email you used to buy it and we'll send a fresh secure link.`
+    : `Secure links can only be used once. Enter the email you used and we'll send a fresh one — your ${isPortal ? 'pack is saved' : 'progress is saved'}.`
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -80,11 +97,10 @@ export function ResumeForm({ next, expired }: Props) {
         ) : (
           <>
             <h1 style={{ fontSize: 'var(--h3)', margin: '0 0 12px', lineHeight: 1.25 }}>
-              {expired ? 'That link has expired' : 'Return to your questionnaire'}
+              {heading}
             </h1>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 24px' }}>
-              Secure links can only be used once. Enter the email you used and we&rsquo;ll send a fresh
-              one — your progress is saved.
+              {body}
             </p>
 
             <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>

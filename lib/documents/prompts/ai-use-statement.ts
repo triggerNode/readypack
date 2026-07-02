@@ -65,5 +65,6 @@ RULES:
 - Populate ai_systems_table.rows with EXACTLY one row per tool listed above. Each row is an array of 4 short strings.
 - All prose must be specific to ${intake.companyName} and its industry (${intake.industry}).
 - Do not invent AI tools or vendors that were not listed.
+- Use the vendor/provider given for each tool above in the Vendor column. NEVER output placeholder text such as "Vendor under review", "Unknown", "TBD", "N/A", or a blank — every cell must carry real, specific content.
 - Output ONLY the JSON object. No markdown.`
 }

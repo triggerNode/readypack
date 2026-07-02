@@ -50,6 +50,7 @@ import { buildPrompt as buildDisclosureSnippetsPrompt } from '@/lib/documents/pr
 import { buildPrompt as buildVendorRegisterPrompt } from '@/lib/documents/prompts/vendor-register'
 import { buildPrompt as buildComplaintsProcedurePrompt } from '@/lib/documents/prompts/complaints-procedure'
 import { buildPrompt as buildProcurementMemoPrompt } from '@/lib/documents/prompts/procurement-memo'
+import { sendDeliveryEmailForOrder } from '@/lib/documents/delivery-email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -558,6 +559,24 @@ export async function POST(request: NextRequest) {
       .from('orders')
       .update({ delivery_status: finalOrderStatus, updated_at: new Date().toISOString() })
       .eq('id', order_id)
+
+    // Auto-notify the customer for the SELF-SERVE path (low/medium risk that
+    // auto-generated straight through). High/critical cases are HELD — an admin
+    // clears the flags and RELEASES them, so they must not be emailed here. Only
+    // fire on a clean qa_review (not escalated), skip if a delivery email already
+    // went out (idempotent across retries), and never block the response on email.
+    const isSelfServe = submission.risk_level === 'low' || submission.risk_level === 'medium'
+    if (finalOrderStatus === 'qa_review' && isSelfServe) {
+      const { count: priorDeliveries } = await supabaseAdmin
+        .from('customer_communications')
+        .select('id', { count: 'exact', head: true })
+        .eq('order_id', order_id)
+        .eq('email_type', 'delivery')
+      if (!priorDeliveries) {
+        const mail = await sendDeliveryEmailForOrder(order_id)
+        if (!mail.ok) console.error('[generate] auto delivery email failed:', mail.error)
+      }
+    }
 
     return NextResponse.json({
       ok: true,
