@@ -54,7 +54,7 @@ export default function AdminLoginPage() {
           marginBottom: 'var(--sp-2)',
           fontWeight: 700,
         }}>
-          Readypack Admin
+          ReadyPack Admin
         </h1>
 
         <p style={{

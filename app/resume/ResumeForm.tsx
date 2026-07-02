@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ReadyPackLogo } from '@/components/ReadyPackLogo'
 import { requestFreshLink } from './actions'
 
 type Props = {
@@ -71,17 +72,28 @@ export function ResumeForm({ next, expired, switchAccount = false, signedInEmail
           textAlign: 'center',
         }}
       >
+        {/* Wordmark — matches the landing header: mark + one-colour name,
+            font-sans / 700 / 20px / -0.01em. Never split-colour the name. */}
         <span
           style={{
-            fontWeight: 700,
-            fontSize: 20,
-            letterSpacing: '-0.01em',
-            color: 'var(--text-primary)',
-            display: 'inline-block',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
             marginBottom: 24,
           }}
         >
-          Ready<span style={{ color: 'var(--accent-primary)' }}>Pack</span>
+          <ReadyPackLogo style={{ width: 26, height: 26 }} />
+          <span
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 700,
+              fontSize: 20,
+              letterSpacing: '-0.01em',
+              color: 'var(--text-primary)',
+            }}
+          >
+            ReadyPack
+          </span>
         </span>
 
         {status === 'sent' ? (

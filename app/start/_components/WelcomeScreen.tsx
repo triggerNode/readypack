@@ -77,7 +77,7 @@ export function WelcomeScreen({ onStart, isReturning }: Props) {
         </button>
 
         <p className="qz-welcome-fine">
-          Your answers are encrypted in transit and stored securely. Readypack uses your answers
+          Your answers are encrypted in transit and stored securely. ReadyPack uses your answers
           only to generate your compliance documents.
         </p>
       </div>

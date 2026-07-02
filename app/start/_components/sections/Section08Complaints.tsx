@@ -58,7 +58,7 @@ export function Section08Complaints({ answers, isSaving, onChange, onBack, onCon
         <FieldGroup
           label="Do you currently have a documented complaints procedure for data-related complaints?"
           helpTitle="What is required from June 2026?"
-          helpText="The Data Use and Access Act (Section 103, in force 19 June 2026) requires all businesses to have a process for handling data-related complaints. You must acknowledge within 30 days and investigate properly before a customer can go to the ICO. Readypack will build this procedure document for you."
+          helpText="The Data Use and Access Act (Section 103, in force 19 June 2026) requires all businesses to have a process for handling data-related complaints. You must acknowledge within 30 days and investigate properly before a customer can go to the ICO. ReadyPack will build this procedure document for you."
         >
           <RadioGroup
             name="Procedure"

@@ -234,7 +234,7 @@ export function Section10ReviewSubmit({
           </span>
           <span className="qz-confirm-label">
             I confirm the information I&apos;ve provided is accurate to the best of my knowledge. I
-            understand that Readypack will use this information solely to generate my compliance
+            understand that ReadyPack will use this information solely to generate my compliance
             documentation pack, and that the documents produced are templates based on my answers
             — not legal advice.
           </span>

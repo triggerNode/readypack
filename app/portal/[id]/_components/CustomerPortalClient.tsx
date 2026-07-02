@@ -622,9 +622,7 @@ export function CustomerPortalClient({
         <div className={`${styles.container} ${styles.navInner}`}>
           <span className={styles.logo} aria-label="ReadyPack">
             <ReadyPackLogo style={{ width: 26, height: 26 }} />
-            <span className={styles.logoWord}>
-              Ready<span className={styles.logoAccent}>Pack</span>
-            </span>
+            <span className={styles.logoWord}>ReadyPack</span>
           </span>
           <div className={styles.client}>
             <div className={styles.clientMeta}>

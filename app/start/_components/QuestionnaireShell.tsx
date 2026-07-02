@@ -492,7 +492,7 @@ function QzNavBar({ autosave }: { autosave: AutosaveStatus }) {
           }}
         >
           <ReadyPackLogo style={{ width: 28, height: 28, flexShrink: 0 }} />
-          <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.01em' }}>Readypack</span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 20, letterSpacing: '-0.01em' }}>ReadyPack</span>
         </a>
         <div className="qz-nav-account">
           <span className="qz-nav-saved">

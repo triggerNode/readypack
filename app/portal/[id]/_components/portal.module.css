@@ -43,15 +43,14 @@
   color: inherit;
 }
 
+/* Wordmark — matches the landing page .logo-word exactly (one colour, one
+   typeface): font-sans / 700 / 20px / -0.01em. Never split-colour the name. */
 .logoWord {
+  font-family: var(--font-sans);
   font-weight: 700;
-  font-size: 21px;
-  letter-spacing: -0.015em;
+  font-size: 20px;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
-}
-
-.logoAccent {
-  color: var(--accent-primary);
 }
 
 .client {
