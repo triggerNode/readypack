@@ -759,7 +759,13 @@ const s = StyleSheet.create({
     fontSize: 10,
     color: C.body,
     paddingTop: 30,
-    paddingBottom: 70,
+    // The fixed Footer (footer row + AI-Act disclosure, pinned at bottom:18) can
+    // reach ~60pt tall when the disclosure wraps; a 70pt reserve left only a
+    // razor-thin gap, so a table row sitting at the page bottom could cross into
+    // the footer band (the observed Privacy Notice bleed). 90pt keeps a
+    // comfortable clearance so flowing content always breaks before the footer.
+    // Purely a break-position change — no visual/style change to pages that fit.
+    paddingBottom: 90,
     paddingHorizontal: 45,
   },
   // ── Per-document cover page ──
