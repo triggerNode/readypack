@@ -290,6 +290,50 @@ export function buildDeliveryEmail({
   })
 }
 
+type ReviewHoldEmailInput = {
+  customerName?: string | null
+  packReference?: string | null
+}
+
+/**
+ * Sent when a self-serve (low/medium) pack was generated but the automated QA
+ * layer HELD it for a final human review instead of auto-releasing. The customer
+ * is deliberately NOT given a portal link yet — the pack is not reviewable until
+ * our team releases it, at which point the normal delivery email (with a fresh
+ * secure link) goes out. This message exists so a held self-serve customer who
+ * has already paid is never left in silence.
+ */
+export function buildReviewHoldEmail({
+  customerName,
+  packReference,
+}: ReviewHoldEmailInput): string {
+  const safeName = customerName ? escapeHtml(customerName) : null
+  const safeRef = packReference ? escapeHtml(packReference) : null
+  const refClause = safeRef
+    ? ` — pack reference <strong style="color:${C.accentText}; font-weight:700;">${safeRef}</strong>`
+    : ''
+
+  return wrapEmail({
+    title: 'Your ReadyPack compliance pack is in final review',
+    preheader: 'Your pack has been prepared and is getting a final quality check from our compliance team.',
+    rows: [
+      eyebrowRow('Final review'),
+      headingRow(
+        safeName ? `${safeName}, your pack is in final review` : 'Your pack is in final review',
+        16,
+      ),
+      bodyRow(
+        `<p style="margin:0 0 14px 0;">Good news — we&rsquo;ve prepared your compliance pack${refClause}. Before we release it, one of our compliance team is giving it a final quality check.</p>
+         <p style="margin:0;">You don&rsquo;t need to do anything. We&rsquo;ll email you a secure link to review and approve your documents as soon as that check is complete — usually within one business day.</p>`,
+      ),
+      infoBoxRow(
+        'What happens next',
+        'Our team finishes the review, then you&rsquo;ll get an email with a secure portal link to review the watermarked drafts, request any changes, and approve the pack to unlock your final PDFs.',
+      ),
+    ],
+  })
+}
+
 type RequestInfoEmailInput = {
   magicLink: string
   customerName?: string | null

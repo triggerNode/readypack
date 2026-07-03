@@ -10,7 +10,7 @@
 import { generateMagicLink } from '@/lib/auth/magic-link'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
-import { buildDeliveryEmail } from '@/lib/email'
+import { buildDeliveryEmail, buildReviewHoldEmail } from '@/lib/email'
 
 const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
 
@@ -80,6 +80,57 @@ export async function sendDeliveryEmailForOrder(orderId: string): Promise<Delive
     })
 
     return { ok: true, docCount, resendId: sendResult.data?.id ?? null }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'unexpected error' }
+  }
+}
+
+/**
+ * Email the customer a holding notice for a self-serve (low/medium) pack that
+ * the QA layer HELD for a final human review instead of auto-releasing. No
+ * portal link is sent — the pack is not reviewable until an admin releases it,
+ * which then triggers the normal delivery email. This exists so a held customer
+ * who has already paid is never left in silence. Never throws.
+ */
+export async function sendReviewHoldEmailForOrder(orderId: string): Promise<DeliveryEmailResult> {
+  try {
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('id, user_id, display_reference')
+      .eq('id', orderId)
+      .maybeSingle()
+    if (!order) return { ok: false, error: 'order not found' }
+
+    const { data: customer } = await supabaseAdmin
+      .from('users')
+      .select('email, company_name, trading_name')
+      .eq('id', order.user_id)
+      .maybeSingle()
+    if (!customer?.email) return { ok: false, error: 'customer email not found' }
+
+    const packRef = order.display_reference ?? `RP-${order.id.slice(0, 8).toUpperCase()}`
+
+    const sendResult = await resend.emails.send({
+      from: FROM_ADDRESS,
+      replyTo: 'hello@readypack.co.uk',
+      to: [customer.email],
+      subject: 'Your ReadyPack compliance pack is in final review',
+      html: buildReviewHoldEmail({
+        customerName: customer.trading_name || customer.company_name || null,
+        packReference: packRef,
+      }),
+    })
+    if (sendResult.error) return { ok: false, error: sendResult.error.message }
+
+    await supabaseAdmin.from('customer_communications').insert({
+      order_id: order.id,
+      email_type: 'escalation_notice',
+      sent_at: new Date().toISOString(),
+      resend_id: sendResult.data?.id ?? null,
+      delivery_status: 'sent',
+    })
+
+    return { ok: true, resendId: sendResult.data?.id ?? null }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'unexpected error' }
   }

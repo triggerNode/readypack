@@ -9,6 +9,26 @@ import {
 
 export const DOC_TYPE: DocumentType = 'procurement_response_memo'
 
+// The canonical 9-document index. Every cross-reference the memo makes MUST use
+// these exact numbers and titles. The model was inventing document titles for
+// numbers (e.g. "Doc 04 = Records of Processing", "Doc 06 = Data Subject Rights
+// Register") that do not match the real pack, which the QA layer then correctly
+// flagged as a cross-document inconsistency and escalated on. The base memo
+// prompt already carries the index inside documentation_index_table, but the
+// chunked Q&A sub-calls did not — so injecting this into every memo sub-call
+// removes the guesswork at the source.
+const DOCUMENT_INDEX_REFERENCE = `DOCUMENT REFERENCE INDEX — when citing a supporting document by number, you MUST use these exact numbers and titles. NEVER invent a different title for a number, and NEVER cite a document number that is not in this list:
+- Doc 01: AI Use Statement
+- Doc 02: Privacy Notice Addendum
+- Doc 03: AI Risk Register
+- Doc 04: DPIA-Lite (Data Protection Impact Assessment)
+- Doc 05: Internal AI Use Policy
+- Doc 06: Customer Disclosure Snippets
+- Doc 07: Vendor AI Register
+- Doc 08: Complaints Procedure Pack
+- Doc 09: Procurement Response Memo (this document)
+IMPORTANT MAPPINGS: Records of Processing (UK GDPR Art. 30) content lives in the Privacy Notice Addendum (Doc 02) — there is NO standalone "Records of Processing" document. Data-subject-rights content lives in the Privacy Notice Addendum (Doc 02) and Customer Disclosure Snippets (Doc 06) — there is NO standalone "Data Subject Rights Register". If a topic has no dedicated document, cite the document that actually contains it (or state it is handled as a process) — never a made-up document title.`
+
 // Core memo prompt. `includeQaBank` controls whether the 40-question procurement
 // Q&A bank is requested inline.
 //   • Single-call path  (buildPrompt)         → includes the bank for premium tiers.
@@ -28,7 +48,7 @@ function memoPrompt(intake: PromptIntake, includeQaBank: boolean): string {
 - procurement_qa_bank: Generate EXACTLY 40 question/answer objects. No more, no fewer.
 - Questions MUST be the kind of items asked in real enterprise RFPs and vendor due-diligence questionnaires on AI and data compliance. Cover, at minimum: training data ring-fencing and isolation, data retention for AI inferences and prompts, model training reuse of customer data, sub-processor disclosure, cross-border transfers and SCC/DPF reliance, EU AI Act risk classification of deployed systems, Article 50 transparency obligations, human oversight controls, automated decision-making safeguards (UK GDPR Art. 22), DPIA coverage, incident notification timelines, model output logging and auditability, prompt-injection and output filtering controls, bias and discrimination testing, accuracy and performance monitoring, vendor SOC 2 / ISO 27001 / ISO 42001 status, encryption in transit and at rest, access controls and least privilege, employee AI usage policy, deletion-on-request workflows, complaint handling under DUAA Section 103, records of processing (Art. 30), lawful basis selection, special category data handling, children's data, marketing and profiling, breach notification, data residency, business continuity, and AI system decommissioning.
 - Example phrasings (do NOT just copy verbatim — adapt to this customer): "How is training data ring-fenced from other tenants?", "What is your data retention policy for AI inferences and prompts?", "Do any of your AI vendors reuse customer data to train their models?"
-- Answers MUST be highly specific to THIS customer: name the actual AI tools, vendors, jurisdictions, DPA status, transfer mechanisms, and risk flags from the intake data above. Reference specific Document numbers (01–09) as supporting evidence where relevant. Never give a generic boilerplate answer.
+- Answers MUST be highly specific to THIS customer: name the actual AI tools, vendors, jurisdictions, DPA status, transfer mechanisms, and risk flags from the intake data above. When citing supporting documents, use ONLY the DOCUMENT REFERENCE INDEX above — never invent a document title for a number. Never give a generic boilerplate answer.
 - If a question cannot be answered from the intake data, state explicitly what is in place and what is not (e.g. "No Annex III high-risk AI systems are currently deployed; this is reviewed quarterly.").`
     : ''
 
@@ -40,6 +60,8 @@ ${companyProfileBlock(intake)}
 
 AI TOOLS:
 ${formatAiTools(intake.aiTools)}
+
+${DOCUMENT_INDEX_REFERENCE}
 
 OUTPUT SCHEMA (respond with ONLY this JSON object):
 {
@@ -157,6 +179,8 @@ ${companyProfileBlock(intake)}
 AI TOOLS:
 ${formatAiTools(intake.aiTools)}
 
+${DOCUMENT_INDEX_REFERENCE}
+
 TASK: Generate EXACTLY ${group.count} question/answer objects covering this theme — ${group.label}.
 Topics to cover (one or more questions each, ${group.count} total): ${group.topics}.
 
@@ -170,7 +194,7 @@ OUTPUT SCHEMA (respond with ONLY this JSON object):
 RULES:
 - Generate EXACTLY ${group.count} objects. No more, no fewer.
 - Questions MUST read like real enterprise RFP / supplier-questionnaire items (e.g. "How is training data ring-fenced from other tenants?", "What is your data retention policy for AI inferences and prompts?").
-- Answers MUST be specific to THIS customer: name the actual AI tools, vendors, jurisdictions, DPA status, transfer mechanisms, and risk flags from the intake above. Reference specific Document numbers (01–09) as supporting evidence where relevant. Never give generic boilerplate.
+- Answers MUST be specific to THIS customer: name the actual AI tools, vendors, jurisdictions, DPA status, transfer mechanisms, and risk flags from the intake above. When citing supporting documents, use ONLY the DOCUMENT REFERENCE INDEX above — never invent a document title for a number. Never give generic boilerplate.
 - If something cannot be answered from the intake, state explicitly what is in place and what is not (e.g. "No Annex III high-risk AI systems are currently deployed; this is reviewed quarterly.").
 - Output ONLY the JSON object. Strictly valid JSON (no trailing commas, no comments).`
 }

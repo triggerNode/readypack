@@ -182,6 +182,24 @@ YOU MUST PERFORM THESE 6 CORE CHECKS:
 
 6. RED-FLAG ESCALATION — Identify anything that should NOT ship without human review: undeclared high-risk or unacceptable-risk AI systems, vendors with 'not_in_place' DPA status processing personal data, unresolved 'critical' risk flags, regulated-sector indicators (legal, healthcare, financial advice) that suggest specialist routing is required, or any content that appears legally unsafe.
 
+CALIBRATION — WHAT IS *NOT* A RED FLAG (this is critical to get right):
+ReadyPack exists to take a business that is NOT YET compliant and give it the documents and action plan to BECOME compliant. So a customer having OPEN, FORWARD-LOOKING remediation actions is the EXPECTED, NORMAL baseline — it is the entire reason they bought the pack. Do NOT raise red_flags, and do NOT escalate, merely because the customer has not yet completed an action the pack itself prescribes. The following are EXPECTED and belong in the AI Risk Register as action items — they are NOT red_flags and NOT grounds for escalation:
+- Transparency/disclosure notices "not yet live", not yet published, or pending deployment (the pack provides them).
+- Transfer Impact Assessments (TIAs) or Legitimate Interests Assessments (LIAs) "in progress", "to be completed", "being finalised", or "available on request" (the pack provides the templates).
+- A privacy notice, ROPA, or policy newly created by this pack and not yet published to customers.
+- Inventories, logs, or registers the pack recommends building that do not yet exist.
+- Certifications (ISO 27001, SOC 2, ISO 42001) described as "on the roadmap", "targeted", or aspirational.
+- Any item whose only issue is "confirm the customer has done X" where X is a remediation step the pack assigns with a future deadline.
+Surface these inside the documents as remediation actions; NEVER treat them as a reason to withhold the pack. A pack whose only concerns are forward-looking remediation actions of this kind should be APPROVED.
+
+ONLY escalate (or specialist_route) for a GENUINE problem that makes the pack unsafe or defective to ship, i.e. one of:
+- A real PACK DEFECT: two documents materially contradict each other; a document is missing; a risk classification is plainly wrong; a cited document number/title does not correspond to a real document in the index.
+- An undeclared HIGH-risk or UNACCEPTABLE-risk AI system (EU AI Act Annex III / Article 5).
+- A vendor with DPA status 'not in place' that is actually processing personal data (a real safeguard gap — not a paperwork-in-progress note).
+- An unresolved 'critical' intake risk flag.
+- A regulated-sector indicator (legal, healthcare, financial advice, biometrics, children's data at scale) that genuinely needs a specialist.
+- Content that is legally incorrect or unsafe as written.
+
 OUTPUT FORMAT — RESPOND WITH ONLY THIS JSON OBJECT. NO MARKDOWN. NO CODE FENCES. NO PREAMBLE. NO COMMENTARY.
 
 {
@@ -215,9 +233,9 @@ OUTPUT FORMAT — RESPOND WITH ONLY THIS JSON OBJECT. NO MARKDOWN. NO CODE FENCE
 }
 
 RECOMMENDED_ACTION RULES:
-- "approve" — only when completeness_score >= 85, risk_score <= 25, no 'critical' or 'high' red_flags, no 'critical' consistency_issues.
+- "approve" — completeness_score >= 85, risk_score <= 25, no genuine 'critical' or 'high' red_flags (per the CALIBRATION above — forward-looking remediation actions are NOT red_flags), and no 'critical' consistency_issues. This is the correct verdict for a normal self-serve pack whose only open items are the remediation actions it prescribes.
 - "request_more_info" — there are missing_info entries blocking confident generation but no safety concerns.
-- "escalate" — there are 'high' or 'critical' red_flags OR risk_score > 60. Set human_escalation_required = true.
+- "escalate" — a GENUINE 'high' or 'critical' red_flag exists (a real pack defect or unsafe/mis-declared situation as defined in the CALIBRATION section — do NOT count expected forward-looking remediation actions) OR risk_score > 60. Set human_escalation_required = true.
 - "specialist_route" — a regulated-sector red_flag is present (legal, healthcare, financial advice, children's data at scale, biometrics). Set human_escalation_required = true.
 
 CRITICAL: Output ONLY the raw JSON object. Strictly valid JSON. No trailing commas. No comments. No \`\`\`json wrapper.`

@@ -25,7 +25,11 @@ import type { SpecificDocumentContent } from './content-schemas'
 // History:
 //   2026-07-02: vendor resolution in generation-context (kill "Vendor under
 //               review") + ai-use-statement prompt guardrail.
-export const GENERATION_LOGIC_VERSION = '2026-07-02.1'
+//   2026-07-03: QA-layer recalibration (self-serve packs are no longer escalated
+//               for the customer's normal not-yet-compliant remediation state) +
+//               procurement-memo document-index guardrail (kill invented
+//               "Doc 04 = RoPA" / "Doc 06 = Rights Register" cross-references).
+export const GENERATION_LOGIC_VERSION = '2026-07-03.1'
 
 export interface ContentFingerprint {
   // Environment is part of the fingerprint so test-generated content can never

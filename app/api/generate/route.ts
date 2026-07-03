@@ -50,7 +50,7 @@ import { buildPrompt as buildDisclosureSnippetsPrompt } from '@/lib/documents/pr
 import { buildPrompt as buildVendorRegisterPrompt } from '@/lib/documents/prompts/vendor-register'
 import { buildPrompt as buildComplaintsProcedurePrompt } from '@/lib/documents/prompts/complaints-procedure'
 import { buildPrompt as buildProcurementMemoPrompt } from '@/lib/documents/prompts/procurement-memo'
-import { sendDeliveryEmailForOrder } from '@/lib/documents/delivery-email'
+import { sendDeliveryEmailForOrder, sendReviewHoldEmailForOrder } from '@/lib/documents/delivery-email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -575,6 +575,22 @@ export async function POST(request: NextRequest) {
       if (!priorDeliveries) {
         const mail = await sendDeliveryEmailForOrder(order_id)
         if (!mail.ok) console.error('[generate] auto delivery email failed:', mail.error)
+      }
+    } else if (finalOrderStatus === 'escalated' && isSelfServe) {
+      // A self-serve (low/medium) pack the QA layer HELD for a final human
+      // review. The customer has paid and submitted, so they must not be left in
+      // silence — send a holding notice (no portal link yet; the real delivery
+      // email with a secure link goes out when an admin releases the pack).
+      // Idempotent (skip if a hold OR delivery email already went out) and never
+      // blocks the response.
+      const { count: priorHoldOrDelivery } = await supabaseAdmin
+        .from('customer_communications')
+        .select('id', { count: 'exact', head: true })
+        .eq('order_id', order_id)
+        .in('email_type', ['escalation_notice', 'delivery'])
+      if (!priorHoldOrDelivery) {
+        const mail = await sendReviewHoldEmailForOrder(order_id)
+        if (!mail.ok) console.error('[generate] review-hold email failed:', mail.error)
       }
     }
 
