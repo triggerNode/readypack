@@ -1065,9 +1065,16 @@ function DocumentShell({
   )
 }
 
+// minPresenceAhead keeps a heading from being orphaned at the bottom of a page:
+// react-pdf will only render the heading on the current page if at least this many
+// points remain for the content that follows it; otherwise the heading breaks to
+// the next page and travels WITH its section instead of sitting alone above a gap.
+const H1_KEEP_WITH_NEXT = 150
+const H2_KEEP_WITH_NEXT = 120
+
 function H1({ number, children }: { number?: string; children: string }) {
   return (
-    <Text style={s.sectionH1}>
+    <Text style={s.sectionH1} minPresenceAhead={H1_KEEP_WITH_NEXT}>
       {number ? <Text style={s.sectionH1Num}>{number} </Text> : null}
       {children}
     </Text>
@@ -1076,7 +1083,7 @@ function H1({ number, children }: { number?: string; children: string }) {
 
 function H2({ number, children }: { number?: string; children: string }) {
   return (
-    <Text style={s.sectionH2}>
+    <Text style={s.sectionH2} minPresenceAhead={H2_KEEP_WITH_NEXT}>
       {number ? <Text style={s.sectionH1Num}>{number} </Text> : null}
       {children}
     </Text>
@@ -1121,15 +1128,19 @@ function PdfTable({
           </View>
         ))}
       </View>
-      {/* Rows are breakable (no wrap={false}): a tall row flows across a page
-          boundary below the repeating header instead of bleeding past the
-          footer or leaving the previous page half-empty. */}
+      {/* Rows are atomic (wrap={false}): a row that doesn't fit the remaining
+          space moves WHOLE to the next page rather than tearing its cells across
+          the break (which mis-aligned columns — e.g. a doc-index "01" stranded on
+          one page while its title/owner landed on the next). Safe here because no
+          PdfTable row approaches a full page in height (the long-form Q&A bank is
+          rendered as text blocks, not a table). */}
       {rows.map((row, rIdx) => {
         const isLast = rIdx === rows.length - 1
         const isAlt = rIdx % 2 === 1
         return (
           <View
             key={rIdx}
+            wrap={false}
             style={[
               s.tableRow,
               isAlt ? s.tableRowAlt : {},
