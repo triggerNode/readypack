@@ -7,7 +7,22 @@
 export type RiskSeverity = 'low' | 'medium' | 'high'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 
+// Stable machine identity for each deterministic flag rule. Additive to the
+// scoring logic (never changes a level or severity) — it exists so downstream
+// code can key off a rule without string-matching human-readable text:
+//   • the closure-path classifier (lib/risk/resolution.ts)
+//   • the Stage 3 customer "what we noticed" read-me (one curated line per code)
+export type RiskFlagCode =
+  | 'ai_decision_making'
+  | 'annex_iii_category'
+  | 'special_category'
+  | 'customer_facing_no_disclosure'
+  | 'eu_ai_act_applicability'
+  | 'vendor_dpa'
+  | 'no_governance_owner'
+
 export type RiskFlag = {
+  code: RiskFlagCode
   severity: RiskSeverity
   triggering_answer: string
   explanation: string
@@ -58,6 +73,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
   const decisionMaking = strAt(s4, 'ai_decision_making')
   if (decisionMaking === 'Yes' || decisionMaking === 'Partly') {
     flags.push({
+      code: 'ai_decision_making',
       severity: 'high',
       triggering_answer: `ai_decision_making=${decisionMaking}`,
       explanation: 'AI contributes to decisions about individual people. This implicates Article 22 UK GDPR and potentially EU AI Act Annex III.',
@@ -69,6 +85,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
   const annexHits = categories.filter((c) => ANNEX_III_CATEGORIES.has(c))
   if (annexHits.length > 0) {
     flags.push({
+      code: 'annex_iii_category',
       severity: 'high',
       triggering_answer: `ai_decision_categories=${annexHits.join(', ')}`,
       explanation: `Selected categories trigger EU AI Act Annex III high-risk classification: ${annexHits.join(', ')}.`,
@@ -93,6 +110,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
       : specialHits
   if (specialSignals.length > 0) {
     flags.push({
+      code: 'special_category',
       severity: 'high',
       triggering_answer: `special_category=${specialSignals.join(', ')}`,
       explanation: 'Special-category personal data under UK GDPR Article 9 requires explicit lawful basis and stricter safeguards.',
@@ -104,6 +122,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
   const currentDisclosure = strAt(s5, 'current_ai_disclosure')
   if (customerFacingAi && (!currentDisclosure || currentDisclosure === 'No')) {
     flags.push({
+      code: 'customer_facing_no_disclosure',
       severity: 'medium',
       triggering_answer: 'customer-facing AI with no disclosure',
       explanation: 'Customer-facing AI without current disclosure creates transparency exposure under UK GDPR Article 13 and emerging regulator guidance.',
@@ -116,6 +135,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
   const euAndProp = (euGeo === 'uk_eu' || euGeo === 'uk_eu_row') && (euProp === '25-50' || euProp === '>50')
   if (euAndProp && customerFacingAi) {
     flags.push({
+      code: 'eu_ai_act_applicability',
       severity: 'medium',
       triggering_answer: `eu_proportion=${euProp}, customer-facing AI`,
       explanation: 'EU customer proportion above 25% combined with customer-facing AI raises EU AI Act applicability.',
@@ -130,6 +150,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
     const nonUkEea = hq && hq !== 'UK' && hq !== 'EU/EEA'
     if (nonUkEea && dpa !== 'Yes') {
       flags.push({
+        code: 'vendor_dpa',
         severity: 'medium',
         triggering_answer: `vendor=${String(v['vendor_name'] ?? 'unknown')}, hq=${hq}, dpa=${dpa ?? 'unknown'}`,
         explanation: 'Non-UK/EEA vendor without confirmed DPA creates international transfer compliance risk.',
@@ -141,6 +162,7 @@ export function scoreRisk(raw: RawAnswers): { riskLevel: RiskLevel; flags: RiskF
   const governanceOwner = strAt(s7, 'governance_owner')
   if (governanceOwner === 'none') {
     flags.push({
+      code: 'no_governance_owner',
       severity: 'low',
       triggering_answer: 'governance_owner=none',
       explanation: 'No formal owner for data protection / AI governance.',

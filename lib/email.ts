@@ -122,8 +122,8 @@ type WrapInput = {
 function wrapEmail({ title, preheader, rows, variant = 'customer' }: WrapInput): string {
   const footerLine =
     variant === 'admin'
-      ? 'ReadyPack admin &middot; MOFE LTD &middot; Company No. 16633320'
-      : `<a href="mailto:hello@readypack.co.uk" style="color:${C.muted}; font-weight:600;">hello@readypack.co.uk</a> &middot; MOFE LTD &middot; Company No. 16633320<br>Documentation support — not legal advice.`
+      ? 'ReadyPack admin &middot; a service of MOFE Ltd (No. 16633320)'
+      : `<a href="mailto:hello@readypack.co.uk" style="color:${C.muted}; font-weight:600;">hello@readypack.co.uk</a> &middot; ReadyPack is a service of MOFE Ltd (No. 16633320)<br>Documentation support — not legal advice.`
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -508,7 +508,8 @@ export function buildSubmitConfirmationEmail({
 
   rows.push(
     bodyRow(
-      `<p style="margin:0;">We&rsquo;ll email you again as soon as your pack is ready to review. Questions in the meantime? Reach us at <a href="mailto:hello@readypack.co.uk" style="color:${C.accentText}; font-weight:600;">hello@readypack.co.uk</a>.</p>`,
+      `<p style="margin:0 0 12px 0;">We&rsquo;ll email you again as soon as your pack is ready to review. You&rsquo;ll also get a short one-page read-me that explains, in plain English, what we noticed about your setup and how your pack covers it. Worth reading first.</p>
+       <p style="margin:0;">Questions in the meantime? Reach us at <a href="mailto:hello@readypack.co.uk" style="color:${C.accentText}; font-weight:600;">hello@readypack.co.uk</a>.</p>`,
       24,
     ),
   )

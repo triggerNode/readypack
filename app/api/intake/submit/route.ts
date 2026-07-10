@@ -5,6 +5,7 @@ import { resend } from '@/lib/resend'
 import { buildSubmitConfirmationEmail } from '@/lib/email'
 import { notifyAdmin } from '@/lib/notifications'
 import { scoreRisk, type RawAnswers } from '@/lib/risk/score'
+import { isHandledAtIntake } from '@/lib/risk/resolution'
 import { enqueueGeneration } from '@/lib/documents/generation-queue'
 
 export const runtime = 'nodejs'
@@ -222,17 +223,30 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Insert risk_flags rows
+  // Insert risk_flags rows. Persist the deterministic `code` (stable rule identity)
+  // and auto-close the no-action ("handled") flags at intake: most flags are already
+  // addressed by the pack, so closing them here keeps the admin surface to a short
+  // "needs a human" list instead of a wall of resolve/resolve. Query (customer gap)
+  // and hold (high-risk sign-off) flags stay open for the admin/customer flow.
+  // scoreRisk stays pure — the handled/query/hold classification happens here.
   if (flags.length > 0) {
-    const flagRows = flags.map((f) => ({
-      submission_id: submission.id,
-      org_id: submission.org_id,
-      severity: f.severity,
-      triggering_answer: f.triggering_answer,
-      explanation: f.explanation,
-      required_action: f.required_action,
-      status: 'open',
-    }))
+    const nowIso = new Date().toISOString()
+    const flagRows = flags.map((f) => {
+      const handled = isHandledAtIntake(f)
+      return {
+        submission_id: submission.id,
+        org_id: submission.org_id,
+        code: f.code,
+        severity: f.severity,
+        triggering_answer: f.triggering_answer,
+        explanation: f.explanation,
+        required_action: f.required_action,
+        status: handled ? 'resolved' : 'open',
+        resolution_type: handled ? 'handled' : null,
+        // resolved_by stays NULL — closed automatically by the system, not a person.
+        resolved_at: handled ? nowIso : null,
+      }
+    })
     const { error: rfErr } = await supabaseAdmin.from('risk_flags').insert(flagRows)
     if (rfErr) {
       console.error('[intake/submit] risk_flags insert failed:', rfErr.message)

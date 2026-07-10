@@ -40,11 +40,14 @@ import {
 // (GeneratePackButton / triggerGenerationAction) and the standalone
 // "Approve & Deliver" button (ApprovePackButton) are defined in ActionForms.tsx
 // but are NOT rendered on any admin page. The shipped held-case path is:
-// generate (backend) → resolve flags (Red Flags tab) → Release for customer
-// review (send-delivery) → the CUSTOMER approves in the portal. Layer C exercises
-// that real shipped path, and triggers held-case generation via the real
-// underlying seam (an admin-authenticated POST /api/generate — exactly what
-// triggerGenerationAction calls under the hood).
+// generate (backend) → SIGN OFF each held flag on the case runbook (accept or
+// remediate + a required reason — the delivery-gate KEY) → the gate clears and the
+// admin clicks "Release for customer review" → the CUSTOMER approves in the portal.
+// Layer C exercises that real shipped path, and triggers held-case generation via
+// the real underlying seam (an admin-authenticated POST /api/generate — exactly
+// what triggerGenerationAction calls under the hood). Stage 3d's query loop (a gap
+// flag the customer answers, which auto-folds into the one affected document) is
+// exercised at the end on the same held pack.
 //
 // Runs in the "authed" project (admin storageState + the setup dependency). The
 // customer side mints its own magic-link session per interaction.
@@ -356,15 +359,16 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
       .toBe('resolved')
   })
 
-  // ── C5 — high-risk HELD: admin generates, flags gate, resolve, approve ──
-  test('high-risk case is held, admin generates, flags gate approval, then approve', async ({ browser, page }) => {
+  // ── C5 — high-risk HELD: admin generates, the gate blocks until each held ──
+  //         flag is signed off on the runbook, then the admin releases ─────────
+  test('high-risk case is held; the gate blocks until each held flag is signed off, then the admin releases', async ({ browser, page }) => {
     test.setTimeout(12 * 60_000)
 
     // Held: no auto-generation job was enqueued on submit.
     expect(await jobCount(heldPack.submissionId), 'high-risk case must be HELD (no auto job)').toBe(0)
 
-    // The flag-gate contract: open high/critical flags exist (these are exactly
-    // what the admin approvePackAction blocks on — see actions.ts approvePackAction).
+    // The flag-gate contract: open high/critical flags exist — exactly what
+    // isBlockingFlag / openHighRiskFlagCount block delivery on (see lib/risk/gate.ts).
     const sb = db()
     const openHighBefore = async () => {
       const { data } = await sb
@@ -383,41 +387,55 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
     const count = await waitForDocs(adminApi, heldPack, { min: 1, ceilingMs: 10 * 60_000 })
     expect(count, 'held pack should generate at least one document once triggered').toBeGreaterThan(0)
 
-    // Resolve every open flag from the Red Flags tab, ONE AT A TIME, gating each
-    // on the DB — not on button text. (A clicked "Mark Resolved" button flips to
-    // "Working…" while its server action is in flight, so counting "Mark Resolved"
-    // buttons would falsely read as resolved and fire many concurrent, contending
-    // actions. Waiting for the DB open-flag count to actually drop resolves them
-    // cleanly, one completed action at a time.)
-    const openFlagCount = async () => {
-      const { data } = await sb
-        .from('risk_flags')
-        .select('id')
-        .eq('submission_id', heldPack.submissionId)
-        .eq('status', 'open')
-      return (data ?? []).length
-    }
+    // Open the case: the runbook (with the delivery-gate banner) renders at the top.
     await page.goto(`/admin/cases/${heldPack.orderId}`, { waitUntil: 'domcontentloaded' })
-    await openAdminTab(page, /Red Flags/i)
+    await expect(page).not.toHaveURL(/\/admin\/login/)
+
+    // Gate BLOCKED: the banner's "Release for review" button is present but locked.
+    await expect(
+      page.getByRole('button', { name: /^Release for review$/i }),
+      'the release button must be locked while a held flag is unresolved',
+    ).toBeDisabled({ timeout: 15_000 })
+
+    // Sign off each held (open high/critical) flag from the runbook flag cards, ONE
+    // AT A TIME, gating each on the DB — not on button text (a submitted sign-off
+    // form flips to "Saving…" while its server action is in flight). Each sign-off
+    // records an accept/remediate decision + a required reason and closes the flag.
     for (let i = 0; i < 20; i++) {
-      const before = await openFlagCount()
+      const before = await openHighBefore()
       if (before === 0) break
-      const btn = page.getByRole('button', { name: /^Mark Resolved$/i }).first()
-      if (!(await btn.isVisible().catch(() => false))) {
-        // DB still has open flags but no button rendered — reload to re-render.
+
+      const signOff = page.getByRole('button', { name: /^Sign off$/i }).first()
+      if (!(await signOff.isVisible().catch(() => false))) {
         await page.reload({ waitUntil: 'domcontentloaded' })
-        await openAdminTab(page, /Red Flags/i)
         continue
       }
-      await btn.click()
+      await signOff.click()
+      // The form expands: choose a decision (clicking the label checks its radio),
+      // give the required reason, confirm.
+      await page.getByText('Accept with justification').first().click()
+      const note = page.locator('textarea[name="note"]').first()
+      await note.waitFor({ state: 'visible', timeout: 10_000 })
+      await note.fill(
+        'Lawful basis is legitimate interests; an LIA is completed and attached. The AI output is advisory only — a human makes the final decision, so Article 22 does not bite.',
+      )
+      await page.getByRole('button', { name: /Confirm sign-off/i }).click()
       await expect
-        .poll(openFlagCount, { timeout: 30_000, message: 'flag resolution should land in the DB' })
+        .poll(openHighBefore, { timeout: 30_000, message: 'sign-off should close the held flag in the DB' })
         .toBeLessThan(before)
     }
-    expect(await openHighBefore(), 'all blocking flags should be resolved').toBe(0)
+    expect(await openHighBefore(), 'all blocking flags should be signed off').toBe(0)
 
-    // Release, then the customer approves a document.
-    await releaseForReview(adminApi, heldPack.orderId)
+    // Gate CLEARED: the real Release button unlocks. Release for customer review.
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    const release = page.getByRole('button', { name: /Release for customer review/i })
+    await expect(release, 'the release button should unlock once the gate clears').toBeEnabled({ timeout: 15_000 })
+    await expect(async () => {
+      await release.click({ timeout: 2_000 }).catch(() => undefined)
+      expect(await orderDeliveryStatus(heldPack.orderId)).toBe('qa_review')
+    }).toPass({ timeout: 30_000 })
+
+    // The customer approves a document in the portal.
     const ctx = await customerContext(browser, HELD.email)
     const cpage = await ctx.newPage()
     try {
@@ -444,5 +462,130 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
       .eq('submission_id', criticalPack.submissionId)
     const highCount = (flags ?? []).filter((f) => f.severity === 'high').length
     expect(highCount, 'a critical case should carry >=2 high flags').toBeGreaterThanOrEqual(2)
+  })
+
+  // ── C7 — the query loop (Stage 3d): admin queries a gap flag, the customer ──
+  //         answers, and the answer auto-folds into the ONE affected document ──
+  //
+  // Reuses heldPack (procurement tier). It carries an OPEN vendor_dpa flag — a
+  // 'query'-path gap (medium severity: HireRank AI, USA, no DPA). C5 signed off the
+  // HIGH flags but never touches this one, and C5 generated the pack, so the affected
+  // document (Vendor AI Register) exists. Answering an info-request that carries a
+  // risk_flag_id kicks foldInAnswer: regenerate that one doc with the answer folded
+  // in, a scoped side-effect-free re-QA, then close the flag as resolution_type=query.
+  test('query loop: admin queries the vendor-DPA gap; the customer answers; the answer auto-folds into the Vendor AI Register', async ({
+    browser,
+    page,
+  }) => {
+    test.setTimeout(8 * 60_000)
+    const sb = db()
+
+    // The fold-in regenerates the Vendor AI Register — if a Storage flake meant it
+    // never generated, the loop cannot run end to end. Skip (don't fail) on pure infra.
+    const docs = await listGeneratedDocs(heldPack.submissionId)
+    test.skip(
+      !docs.some((d) => d.documentType === 'vendor_ai_register'),
+      'vendor_ai_register did not generate (Storage flake) — cannot exercise the fold-in end to end',
+    )
+
+    // The open query flag C5 deliberately left alone.
+    const { data: qflag } = await sb
+      .from('risk_flags')
+      .select('id, status')
+      .eq('submission_id', heldPack.submissionId)
+      .eq('code', 'vendor_dpa')
+      .maybeSingle()
+    expect(qflag, 'held procurement case should carry a vendor_dpa query flag').toBeTruthy()
+    expect(qflag!.status, 'the query flag should still be open before the loop').toBe('open')
+
+    // 1. Admin opens the case and queries the customer from the runbook's query card.
+    await page.goto(`/admin/cases/${heldPack.orderId}`, { waitUntil: 'domcontentloaded' })
+    const queryBtn = page.getByRole('button', { name: /Query the customer/i }).first()
+    await expect(queryBtn).toBeVisible({ timeout: 15_000 })
+    await queryBtn.click()
+
+    // The AI drafts a question into the message box; wait for it, else type our own
+    // (the field is required, min 10 chars). Either way, review-then-send is real.
+    const message = page.locator('textarea[name="message"]')
+    await message.waitFor({ state: 'visible', timeout: 10_000 })
+    await expect(async () => {
+      if ((await message.inputValue()).trim().length < 10) {
+        await message.fill(
+          'Do you have a signed data processing agreement (DPA) with HireRank AI? If so, please confirm so we can record the transfer safeguard in your Vendor AI Register.',
+        )
+      }
+      expect((await message.inputValue()).trim().length).toBeGreaterThanOrEqual(10)
+    }).toPass({ timeout: 60_000 })
+    await page.getByRole('button', { name: /Send to customer/i }).click()
+
+    // Server side: a flag-linked, open info request now exists.
+    let infoRequestId: string | null = null
+    await expect
+      .poll(async () => {
+        const { data } = await sb
+          .from('info_requests')
+          .select('id, status')
+          .eq('order_id', heldPack.orderId)
+          .eq('risk_flag_id', qflag!.id)
+          .maybeSingle()
+        infoRequestId = data?.id ?? null
+        return data?.status ?? null
+      }, { timeout: 30_000, message: 'a flag-linked info request should be created' })
+      .toBe('open')
+
+    // 2. Customer answers it in the portal remediation flow. Answering an
+    //    info-request that carries a risk_flag_id kicks the fold-in (kickFoldIn).
+    const ctx = await customerContext(browser, HELD.email)
+    const cpage = await ctx.newPage()
+    try {
+      await cpage.goto(`/portal/${heldPack.orderId}`, { waitUntil: 'domcontentloaded' })
+      const provide = cpage.getByRole('button', { name: /Provide the information|Answer this question/i }).first()
+      const answer = cpage.locator('#reqText')
+      await expect(async () => {
+        await provide.click({ timeout: 2_000 }).catch(() => undefined)
+        await expect(answer).toBeVisible({ timeout: 2_500 })
+      }).toPass({ timeout: 30_000 })
+      await answer.fill(
+        'Yes — we signed a DPA with HireRank AI on 3 March 2026, with EU Standard Contractual Clauses as the transfer mechanism.',
+      )
+      await cpage.getByRole('button', { name: /Submit & finish|Submit answer/i }).click()
+      await expect(cpage.getByText(/your answers are in|Thank you/i)).toBeVisible({ timeout: 30_000 })
+    } finally {
+      await ctx.close()
+    }
+
+    // 3. The fold-in runs off the request path (real AI regenerate + scoped re-QA).
+    //    It claims regenerated_at exactly once, then closes the flag as 'query'.
+    expect(infoRequestId, 'the info request id should have been captured').toBeTruthy()
+    await expect
+      .poll(async () => {
+        const { data } = await sb
+          .from('info_requests')
+          .select('regenerated_at')
+          .eq('id', infoRequestId!)
+          .maybeSingle()
+        return data?.regenerated_at ?? null
+      }, { timeout: 4 * 60_000, message: 'the answer should be folded in (regenerated_at claimed)' })
+      .not.toBeNull()
+
+    // The gap flag is now closed as resolution_type='query'.
+    await expect
+      .poll(async () => {
+        const { data } = await sb
+          .from('risk_flags')
+          .select('status, resolution_type')
+          .eq('id', qflag!.id)
+          .maybeSingle()
+        return `${data?.status}:${data?.resolution_type}`
+      }, { timeout: 60_000, message: 'the query flag should close as resolution_type=query' })
+      .toBe('resolved:query')
+
+    // And the scoped fold-in left its audit trail.
+    const { data: audit } = await sb
+      .from('audit_events')
+      .select('action_type')
+      .eq('target_id', qflag!.id)
+      .eq('action_type', 'query_auto_regenerated')
+    expect((audit ?? []).length, 'a query_auto_regenerated audit event should be written').toBeGreaterThan(0)
   })
 })

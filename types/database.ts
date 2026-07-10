@@ -15,6 +15,9 @@ export type IntakeCompletionStatus = 'not_started' | 'in_progress' | 'submitted'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 export type RiskFlagSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type RiskFlagStatus = 'open' | 'acknowledged' | 'resolved' | 'escalated'
+// How a flag closed (migration 010). NULL until it closes; auto-set to 'handled'
+// at intake for no-action flags; 'accept'/'remediate' recorded at human sign-off.
+export type RiskFlagResolutionType = 'handled' | 'query' | 'accept' | 'remediate'
 export type AiInteractionDirection = 'internal' | 'customer_facing' | 'both'
 export type DecisionMakingRole = 'none' | 'informing' | 'automated'
 export type EuAiRiskClass = 'minimal' | 'limited' | 'high' | 'unacceptable'
@@ -42,6 +45,8 @@ export interface InfoRequest {
   submission_id: string | null
   /** NULL = case-level (top-level banner); otherwise tied to one document card. */
   document_type: DocumentType | null
+  /** NULL = not tied to a flag; otherwise the `query`-path flag this answer closes (migration 010). */
+  risk_flag_id: string | null
   prompt: string
   options: string[]
   answer_text: string | null
@@ -196,6 +201,14 @@ export interface RiskFlag {
   explanation: string
   required_action: string | null
   status: RiskFlagStatus
+  // Flag resolution model (migration 010). `code` is the deterministic rule that
+  // raised the flag (see RiskFlagCode in lib/risk/score.ts); typed loosely here as
+  // the DB column is free text.
+  code: string | null
+  resolution_type: RiskFlagResolutionType | null
+  resolution_note: string | null
+  resolved_by: string | null
+  resolved_at: string | null
   created_at: string
 }
 

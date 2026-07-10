@@ -245,8 +245,8 @@ export default async function ConfirmationPage({ searchParams }: Props) {
       <footer className={styles.footer}>
         <div className={`${styles.container} ${styles.footerInner}`}>
           <span className={styles.footerLegal}>
-            ReadyPack · MOFE LTD · Company No. 16633320 · Not legal advice — documentation
-            support.
+            ReadyPack is a service of MOFE Ltd (No. 16633320) · Not legal advice —
+            documentation support.
           </span>
           <span className={styles.footerLinks}>
             <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a>

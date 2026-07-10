@@ -59,7 +59,7 @@ test('admin "Generate Pack" button enqueues generation for a held case', async (
   expect(await jobCount(order.submissionId), 'held case must start with no generation job').toBe(0)
 
   // Admin opens the case. Because 0 documents exist, the "Generate Pack" button
-  // is rendered in the header (see CaseHeader documentCount gate).
+  // is the active first step of the runbook (see CaseRunbook / deriveRunbook).
   await page.goto(`/admin/cases/${order.orderId}`, { waitUntil: 'domcontentloaded' })
   const genBtn = page.getByRole('button', { name: /^Generate Pack$/i })
   await expect(genBtn, 'the Generate Pack button should be visible for a held, ungenerated case').toBeVisible({

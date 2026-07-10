@@ -23,6 +23,7 @@ import { generateMagicLink } from '@/lib/auth/magic-link'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resend } from '@/lib/resend'
 import { buildDeliveryEmail } from '@/lib/email'
+import { openHighRiskFlagCount } from '@/lib/risk/gate'
 import { revalidatePath } from 'next/cache'
 
 const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
@@ -91,6 +92,43 @@ export async function POST(
       )
     }
 
+    // Resolve the submission once — used by both the flag gate and the doc-count guard.
+    // Fail closed: if this read errors we cannot verify the gate, so do NOT release.
+    const { data: submissionRow, error: submissionLookupError } = await supabaseAdmin
+      .from('intake_submissions')
+      .select('id')
+      .eq('order_id', order.id)
+      .maybeSingle()
+    if (submissionLookupError) {
+      return NextResponse.json(
+        { error: `Could not verify the pack before release: ${submissionLookupError.message}` },
+        { status: 500 },
+      )
+    }
+    const submissionId = submissionRow?.id ?? null
+
+    // ── Flag gate ──────────────────────────────────────────────────
+    // Don't release a high-risk pack for customer review until a human has signed
+    // off its high flags (accept-with-justification or remediate). This is the
+    // runbook's step order: sign off, THEN release for review. A resend of an
+    // already-approved/delivered pack is exempt — the sign-off already happened and
+    // this is just re-emailing the portal link.
+    if (
+      submissionId &&
+      order.delivery_status !== 'approved' &&
+      order.delivery_status !== 'delivered'
+    ) {
+      const blockingFlags = await openHighRiskFlagCount(submissionId)
+      if (blockingFlags > 0) {
+        return NextResponse.json(
+          {
+            error: `Cannot release: ${blockingFlags} high-risk flag(s) still need sign-off before this pack can go to the customer.`,
+          },
+          { status: 409 },
+        )
+      }
+    }
+
     const { data: customer, error: userError } = await supabaseAdmin
       .from('users')
       .select('id, email, company_name, trading_name')
@@ -108,14 +146,7 @@ export async function POST(
     const { count: docCount, error: docCountError } = await supabaseAdmin
       .from('generated_documents')
       .select('id', { count: 'exact', head: true })
-      .eq('submission_id',
-        (await supabaseAdmin
-          .from('intake_submissions')
-          .select('id')
-          .eq('order_id', order.id)
-          .maybeSingle()
-        ).data?.id ?? '00000000-0000-0000-0000-000000000000'
-      )
+      .eq('submission_id', submissionId ?? '00000000-0000-0000-0000-000000000000')
 
     if (docCountError) {
       return NextResponse.json({ error: docCountError.message }, { status: 500 })

@@ -35,13 +35,13 @@ export function Footer() {
               hello@readypack.co.uk
             </a>
             <a className={styles['footer-link']} href="https://find-and-update.company-information.service.gov.uk/company/16633320" target="_blank" rel="noopener noreferrer">
-              MOFE LTD · Registered in England
+              ReadyPack is a service of MOFE Ltd (No. 16633320)
             </a>
           </div>
         </div>
         <div className={styles['footer-bottom']}>
           <div className={styles['fb-row']}>
-            © 2026 ReadyPack · MOFE LTD · Registered in England &amp; Wales
+            © 2026 ReadyPack · a service of MOFE Ltd (No. 16633320)
           </div>
           <div className={styles['fb-row']}>
             ReadyPack is a compliance documentation support service. Nothing on this

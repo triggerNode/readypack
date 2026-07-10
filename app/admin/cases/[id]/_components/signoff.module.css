@@ -1,0 +1,156 @@
+/* Held-flag sign-off form — mirrors design/AdminCaseRunbook.html .signoff.
+   Uses the shared admin tokens (see globals / case-detail.module.css). */
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: 200ms ease;
+}
+.sbtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.sbtnPrimary {
+  background: var(--accent-primary);
+  color: #fff;
+}
+.sbtnPrimary:hover:not(:disabled) {
+  background: var(--accent-hover, #15803d);
+}
+.sbtnSecondary {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+}
+.sbtnSecondary:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+}
+
+.form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.q {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 10px;
+}
+
+.radios {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 150ms ease;
+}
+.radio:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.02);
+}
+.radioSel {
+  border-color: var(--accent-primary);
+  background: rgba(22, 163, 74, 0.08);
+}
+.radioInput {
+  margin-top: 3px;
+  accent-color: var(--accent-primary);
+  flex-shrink: 0;
+}
+.radioTitle {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.radioDesc {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+.noteLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 16px 0 7px;
+}
+.req {
+  color: #fb923c;
+  font-weight: 700;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 11px 13px;
+}
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.err {
+  font-size: 12px;
+  color: #fb923c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sbtn,
+  .radio {
+    transition: none;
+  }
+}

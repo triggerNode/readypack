@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { generateMagicLink } from '@/lib/auth/magic-link'
@@ -9,7 +8,14 @@ import { resend } from '@/lib/resend'
 import { buildRequestInfoEmail, buildRevisedDocReadyEmail } from '@/lib/email'
 import { enqueueGeneration } from '@/lib/documents/generation-queue'
 import { regenerateDocumentWithFeedback } from '@/lib/documents/regenerate-document'
+import { openHighRiskFlagCount, isBlockingFlag } from '@/lib/risk/gate'
 import type { CaseRevisionStatus, DocumentType } from '@/types/database'
+import { type ActionResult, UUID, FROM_ADDRESS, loadCase, writeAudit, refreshCaseUi } from './_shared'
+
+// The held-flag sign-off + Stage-3d query actions live in ./flag-actions (keeps this
+// file under the 800-line ceiling). ActionResult is re-exported so existing import
+// sites (e.g. ActionForms) resolve unchanged.
+export type { ActionResult } from './_shared'
 
 const DOC_LABEL: Record<DocumentType, string> = {
   ai_use_statement: 'AI Use Statement',
@@ -22,8 +28,6 @@ const DOC_LABEL: Record<DocumentType, string> = {
   complaints_procedure_pack: 'Complaints Procedure Pack',
   procurement_response_memo: 'Procurement Response Memo',
 }
-
-const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
 
 /**
  * Server Actions for the admin case detail page.
@@ -45,55 +49,8 @@ const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
  *   7. requestInfoEmail is sent from within requestMoreInfoAction
  */
 
-export type ActionResult =
-  | { success: true }
-  | { success: false; error: string }
-
-const UUID = z.string().uuid('Invalid id')
-
-async function loadCase(caseId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('cases')
-    .select('id, submission_id, status, critical_flag_count, customer_email, company_name, trading_name, plan_selected, delivery_status')
-    .eq('id', caseId)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  return data
-}
-
-async function writeAudit(input: {
-  adminUserId: string
-  actionType:
-    | 'request_more_info'
-    | 'escalation_set'
-    | 'mark_flag_resolved'
-    | 'override_decision'
-    | 'approve_delivery'
-    | 'info_resolved'
-    | 'document_revised'
-    | 'revision_released'
-  targetType: 'order' | 'risk_flag' | 'submission' | 'info_request'
-  targetId: string
-  metadata?: Record<string, unknown>
-}): Promise<void> {
-  const { error } = await supabaseAdmin.from('audit_events').insert({
-    admin_user_id: input.adminUserId,
-    action_type: input.actionType,
-    target_type: input.targetType,
-    target_id: input.targetId,
-    metadata: input.metadata ?? {},
-  })
-  if (error) {
-    // Audit-log failure should not silently succeed an admin mutation —
-    // surface it to the caller so the UI shows an error and the admin retries.
-    throw new Error(`Audit log write failed: ${error.message}`)
-  }
-}
-
-function refreshCaseUi(caseId: string): void {
-  revalidatePath('/admin')
-  revalidatePath(`/admin/cases/${caseId}`)
-}
+// ActionResult, UUID, FROM_ADDRESS, loadCase, writeAudit, and refreshCaseUi now live
+// in ./_shared (imported above) — shared with ./flag-actions.
 
 // ─────────────────────────────────────────
 // 1. Request More Info
@@ -303,13 +260,21 @@ export async function markFlagResolvedAction(
     // Per-record authorisation: the flag must belong to this case's submission.
     const { data: flag, error: flagError } = await supabaseAdmin
       .from('risk_flags')
-      .select('id, submission_id')
+      .select('id, submission_id, severity, status')
       .eq('id', parsed.data.flagId)
       .maybeSingle()
     if (flagError) return { success: false, error: flagError.message }
     if (!flag) return { success: false, error: 'Flag not found' }
     if (flag.submission_id !== c.submission_id) {
       return { success: false, error: 'Flag does not belong to this case' }
+    }
+    // High-risk flags gate delivery, so they can only be closed via the recorded
+    // sign-off (accept/remediate + reason), never the hollow "Mark resolved".
+    if (isBlockingFlag(flag)) {
+      return {
+        success: false,
+        error: 'High-risk flags must be signed off with a recorded decision — use Sign off.',
+      }
     }
 
     const { error: updateError } = await supabaseAdmin
@@ -371,13 +336,21 @@ export async function overrideAndNoteAction(
       if (!c.submission_id) return { success: false, error: 'Case has no submission' }
       const { data: flag, error: flagError } = await supabaseAdmin
         .from('risk_flags')
-        .select('id, submission_id')
+        .select('id, submission_id, severity, status')
         .eq('id', parsed.data.flagId)
         .maybeSingle()
       if (flagError) return { success: false, error: flagError.message }
       if (!flag) return { success: false, error: 'Flag not found' }
       if (flag.submission_id !== c.submission_id) {
         return { success: false, error: 'Flag does not belong to this case' }
+      }
+      // A high-risk flag can only be closed via the recorded sign-off, not a
+      // free-text override — keeps one accountable path to clear the gate.
+      if (isBlockingFlag(flag)) {
+        return {
+          success: false,
+          error: 'High-risk flags must be signed off with a recorded decision — use Sign off.',
+        }
       }
       const { error: updateError } = await supabaseAdmin
         .from('risk_flags')
@@ -433,15 +406,11 @@ export async function approvePackAction(
     // Block approval while any high/critical-severity flag is still open.
     // (Flags never reach 'critical' severity, so the cases view's
     // critical_flag_count was always 0 — smoke-test finding #5. Count the real
-    // open high-risk flags instead.)
+    // open high-risk flags instead.) Shared with the send-delivery route and the
+    // customer finalise paths via lib/risk/gate.ts so every door enforces one rule.
     if (c.submission_id) {
-      const { count: blockingFlags } = await supabaseAdmin
-        .from('risk_flags')
-        .select('id', { count: 'exact', head: true })
-        .eq('submission_id', c.submission_id)
-        .eq('status', 'open')
-        .in('severity', ['high', 'critical'])
-      if ((blockingFlags ?? 0) > 0) {
+      const blockingFlags = await openHighRiskFlagCount(c.submission_id)
+      if (blockingFlags > 0) {
         return {
           success: false,
           error: `Cannot approve: ${blockingFlags} unresolved high-risk flag(s) must be resolved or overridden first.`,
@@ -806,3 +775,4 @@ export async function releaseRevisionAction(
     return { success: false, error: e instanceof Error ? e.message : 'Unexpected error' }
   }
 }
+

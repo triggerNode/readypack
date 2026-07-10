@@ -695,6 +695,25 @@ export function CustomerPortalClient({
             )}
           </div>
 
+          {/* Quiet backup of the read-me sent with the completion email — in case a
+              corporate mail server stripped the attachment. Only once the pack is done. */}
+          {allFinal ? (
+            <a
+              href={`/api/portal/${orderId}/readme`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.readmeLink}
+            >
+              <FileText width={15} height={15} strokeWidth={1.6} aria-hidden />
+              <span className={styles.readmeLinkText}>
+                <span className={styles.readmeLinkTitle}>Start here — for you, not your clients</span>
+                <span className={styles.readmeLinkSub}>
+                  A one-page read-me of what we noticed and how your pack covers it.
+                </span>
+              </span>
+            </a>
+          ) : null}
+
           {errorBanner ? (
             <p className={styles.revError} role="alert" style={{ marginBottom: 16 }}>
               {errorBanner}
@@ -1430,7 +1449,7 @@ export function CustomerPortalClient({
       <footer className={styles.footer}>
         <div className={`${styles.container} ${styles.footerInner}`}>
           <span className={styles.footerLegal}>
-            ReadyPack · MOFE LTD · Company No. 16633320 · Documentation support — not legal advice.
+            ReadyPack is a service of MOFE Ltd (No. 16633320) · Documentation support — not legal advice.
           </span>
           <span className={styles.footerLinks}>
             <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a> ·{' '}

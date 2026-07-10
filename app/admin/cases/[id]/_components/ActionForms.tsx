@@ -191,10 +191,10 @@ export function ReleaseForReviewButton({
   )
 }
 
-// Generate Pack — kicks off the document generation pipeline. Rendered in the
-// case header for held cases (high/critical) that skip auto-generation, and for
-// cases whose generation failed (0 documents). Low/medium cases auto-generate,
-// so the button is hidden once documents exist (see CaseHeader documentCount).
+// Generate Pack — kicks off the document generation pipeline. Rendered on the case
+// runbook as the active first step for held cases (high/critical) that skip
+// auto-generation, and for cases whose generation failed (0 documents). Low/medium
+// cases auto-generate, so the step reads done once documents exist (see CaseRunbook).
 export function GeneratePackButton({ caseId }: { caseId: string }) {
   const [result, formAction] = useFormState(triggerGenerationAction, null)
   return (

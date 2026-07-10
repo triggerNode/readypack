@@ -8,7 +8,11 @@ import { finaliseDocument, finaliseOrderPack } from '@/lib/documents/finalise-pa
 import { generateMagicLink } from '@/lib/auth/magic-link'
 import { resend } from '@/lib/resend'
 import { buildPackCompleteEmail } from '@/lib/email'
+import { loadReadmeModel } from '@/lib/documents/readme-service'
+import { renderReadmePdf } from '@/lib/documents/readme-pdf'
+import { kickFoldIn } from '@/lib/documents/fold-in-answer'
 import { notifyAdmin } from '@/lib/notifications'
+import { hasOpenHighRiskFlags } from '@/lib/risk/gate'
 import type { DocumentType } from '@/types/database'
 
 const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
@@ -17,11 +21,26 @@ function packReferenceForOrder(orderId: string): string {
   return `RP-${orderId.slice(0, 8).toUpperCase()}`
 }
 
-// Best-effort "your pack is complete" email once every document is final.
-// Never throws into the action — the in-app result is the source of truth;
-// the email is a courtesy notification.
+// Best-effort "your pack is complete" email (with the "What we noticed" read-me
+// attached) once every document is final. Never throws into the action — the in-app
+// result is the source of truth; the email is a courtesy notification.
+//
+// Send-once: fires from two approval paths (approve-all + the last per-doc approval),
+// so it claims the send by inserting the pack_complete marker FIRST. The unique
+// partial index (migration 011) makes that an atomic lock — a concurrent second
+// caller conflicts and bails, so the email + read-me never double-send.
 async function sendPackCompleteEmail(orderId: string): Promise<void> {
   try {
+    const claim = await supabaseAdmin.from('customer_communications').insert({
+      order_id: orderId,
+      email_type: 'pack_complete',
+      delivery_status: 'sent',
+      sent_at: new Date().toISOString(),
+    })
+    // 23505 = the other approval path already sent it; any other error = give up
+    // quietly. Either way we do NOT send (no double-send, no noisy failure).
+    if (claim.error) return
+
     const { data: order } = await supabaseAdmin
       .from('orders')
       .select('user_id, display_reference')
@@ -41,6 +60,20 @@ async function sendPackCompleteEmail(orderId: string): Promise<void> {
         (await supabaseAdmin.from('intake_submissions').select('id').eq('order_id', orderId).maybeSingle())
           .data?.id ?? '00000000-0000-0000-0000-000000000000',
       )
+
+    // Render the read-me attachment. Best-effort: a render failure must not lose the
+    // completion email itself (the customer still has the portal backup copy).
+    let attachments: Array<{ filename: string; content: Buffer }> | undefined
+    try {
+      const model = await loadReadmeModel(orderId)
+      if (model) {
+        const pdf = await renderReadmePdf(model)
+        attachments = [{ filename: 'ReadyPack - What we noticed.pdf', content: pdf }]
+      }
+    } catch {
+      // no attachment; still send the completion email
+    }
+
     const magicLink = await generateMagicLink(customer.email, `/portal/${orderId}`)
     await resend.emails.send({
       from: FROM_ADDRESS,
@@ -53,10 +86,48 @@ async function sendPackCompleteEmail(orderId: string): Promise<void> {
         packReference: order.display_reference ?? packReferenceForOrder(orderId),
         documentCount: count ?? 9,
       }),
+      attachments,
     })
   } catch {
     // swallow — courtesy email failure must not fail the approval
   }
+}
+
+// Safety net for the finalise doors. A high-risk pack must never have its watermark
+// removed (→ delivered) until a human has signed off its high flags. In the normal
+// flow the admin send-delivery gate already stops a high pack from reaching the
+// customer for review, so this should be unreachable — but it's the last door before
+// delivery, so we hold it too. The customer message stays reassuring (never leak
+// internal "flag" wording); the admin is pinged that someone hit the wall.
+const FINALISE_HOLD_MESSAGE =
+  "We're giving your pack a final review before it's ready to download — we'll email you the moment it's done."
+
+async function highFlagFinaliseBlock(
+  submissionId: string | null,
+  orderId: string,
+): Promise<PortalActionResult | null> {
+  if (!submissionId) return null
+  let blocked: boolean
+  try {
+    blocked = await hasOpenHighRiskFlags(submissionId)
+  } catch (e) {
+    // Fail closed: if we can't verify the gate, don't finalise. Never surface the
+    // internal error to the customer — give the reassuring hold message and tell
+    // the admin the real reason.
+    await notifyAdmin(
+      'Finalise gate check failed — held to be safe',
+      `<p>Could not verify the delivery gate for order <strong>${orderId}</strong>: ${
+        e instanceof Error ? e.message : 'unknown error'
+      }. The customer was asked to wait — investigate before it can be finalised.</p>`,
+    )
+    return { success: false, error: FINALISE_HOLD_MESSAGE }
+  }
+  if (!blocked) return null
+  await notifyAdmin(
+    'Customer blocked at finalise — high flags still open',
+    `<p>A customer tried to finalise order <strong>${orderId}</strong> but it still has open high-risk flag(s) awaiting sign-off. Review the case before it can be delivered.</p>`,
+  )
+  return { success: false, error: FINALISE_HOLD_MESSAGE }
 }
 
 /**
@@ -119,11 +190,15 @@ async function requireCustomerOwner(orderId: string): Promise<
     return { ok: false, error: 'You do not have access to this pack.', status: 403 }
   }
 
-  const { data: submission } = await supabaseAdmin
+  const { data: submission, error: submissionError } = await supabaseAdmin
     .from('intake_submissions')
     .select('id')
     .eq('order_id', orderId)
     .maybeSingle()
+  // Fail closed: a broken submission read must not silently become "no submission"
+  // (which would skip the finalise gate). A genuinely missing submission (null, no
+  // error) is fine — there are no flags to gate on.
+  if (submissionError) return { ok: false, error: submissionError.message, status: 500 }
 
   return {
     ok: true,
@@ -296,6 +371,9 @@ export async function approvePackAction(input: {
       return { success: true, message: 'Your pack is already finalised.' }
     }
 
+    const blocked = await highFlagFinaliseBlock(auth.submissionId, auth.orderId)
+    if (blocked) return blocked
+
     const result = await finaliseOrderPack(auth.orderId)
 
     if (result.succeeded === 0) {
@@ -413,6 +491,9 @@ export async function approveDocumentAction(input: {
       }
     }
 
+    const blocked = await highFlagFinaliseBlock(auth.submissionId, auth.orderId)
+    if (blocked) return blocked
+
     const result = await finaliseDocument(doc.id)
     if (result.succeeded === 0) {
       return {
@@ -485,7 +566,7 @@ export async function submitInfoRequestAnswerAction(input: {
     // The request must belong to this customer's order and still be open.
     const { data: info, error: infoError } = await supabaseAdmin
       .from('info_requests')
-      .select('id, order_id, status')
+      .select('id, order_id, status, risk_flag_id')
       .eq('id', parsed.data.infoRequestId)
       .maybeSingle()
     if (infoError) return { success: false, error: infoError.message }
@@ -511,6 +592,14 @@ export async function submitInfoRequestAnswerAction(input: {
       .eq('status', 'open')
     if (updateError) {
       return { success: false, error: `Could not save your answer: ${updateError.message}` }
+    }
+
+    // Stage 3d: if this question was tied to a risk flag, fold the answer back into
+    // the affected document off the request path (kickFoldIn returns immediately;
+    // foldInAnswer re-checks eligibility + claims the one-regenerate lock). The
+    // customer's submit stays instant; this is optional enrichment, never a gate.
+    if (info.risk_flag_id) {
+      kickFoldIn(auth.orderId, info.id)
     }
 
     await supabaseAdmin.from('audit_events').insert({

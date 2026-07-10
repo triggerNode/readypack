@@ -1468,7 +1468,7 @@ function CombinedPackCover() {
       </div>
       <div className={styles['cover-meta-line-large']}>Issued 7 June 2026</div>
       <div className={styles['cover-footer']}>
-        <span>MOFE LTD · Registered in England &amp; Wales</span>
+        <span>ReadyPack is a service of MOFE Ltd (No. 16633320)</span>
         <span>Confidential</span>
       </div>
     </div>

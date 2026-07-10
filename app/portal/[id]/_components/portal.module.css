@@ -1647,3 +1647,42 @@
   .actFailed svg,
   .badgeLive .bdot::after { animation: none; }
 }
+
+/* Quiet read-me backup link — shown under the list head once the pack is complete.
+   Deliberately understated (a link, not a panel) so it doesn't distort the layout. */
+.readmeLink {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  background: var(--surface-2, rgba(255, 255, 255, 0.02));
+  color: var(--text-secondary, #8fa3b8);
+  text-decoration: none;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+.readmeLink:hover {
+  border-color: var(--accent-primary, #16a34a);
+  color: var(--text-primary, #e6edf3);
+}
+.readmeLink svg {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--accent-primary, #16a34a);
+}
+.readmeLinkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.readmeLinkTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+.readmeLinkSub {
+  font-size: 12px;
+  color: var(--text-muted, #5a7080);
+  line-height: 1.45;
+}

@@ -1812,7 +1812,7 @@ export function renderCombinedPackCover(opts: {
           <Text style={s.coverMetaLineLarge}>Issued {opts.issueDate}</Text>
         </View>
         <View style={s.coverFooter} fixed>
-          <Text>MOFE LTD · Registered in England &amp; Wales</Text>
+          <Text>ReadyPack is a service of MOFE Ltd (No. 16633320)</Text>
           <Text>Confidential</Text>
         </View>
         <Text style={s.aiActDisclosure} fixed>

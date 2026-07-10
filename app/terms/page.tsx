@@ -38,7 +38,7 @@ export default function TermsPage() {
               .
             </p>
             <p className={styles.meta}>
-              MOFE LTD · Company No. 16633320 · Registered in England &amp; Wales
+              ReadyPack is a service of MOFE Ltd (No. 16633320)
             </p>
           </div>
         </div>

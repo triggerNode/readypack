@@ -3,8 +3,18 @@ import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { withSignedUrls } from '@/lib/documents/storage'
+import { isBlockingFlag } from '@/lib/risk/gate'
 import type { CaseRow } from '../../_lib/cases'
-import { CaseHeader } from './_components/CaseHeader'
+import { customerDisplayName, planLabel } from '../../_lib/cases'
+import { deriveRunbook, type CaseRunbookState } from '../../_lib/runbook'
+import { deriveLifecycle } from '../../_lib/lifecycle'
+import {
+  deriveFlagView,
+  orderFlagViews,
+  summariseFlagViews,
+  type FlagRowForView,
+} from '../../_lib/flag-view'
+import { CaseRunbook, type GateState } from './_components/CaseRunbook'
 import { DeliveryTab } from './_components/DeliveryTab'
 import { DocumentsTab } from './_components/DocumentsTab'
 import { IntakeAnswersTab } from './_components/IntakeAnswersTab'
@@ -14,6 +24,16 @@ import { InfoRequestsTab, type InfoRequestRow } from './_components/InfoRequests
 import { RevisionsTab, type RevisionRow } from './_components/RevisionsTab'
 import * as Tabs from './_components/Tabs'
 import styles from './case-detail.module.css'
+
+/** Ordered-at line for the case story header, e.g. "Ordered 6 Jun 2026, 11:20". */
+function formatOrderedAt(iso: string): string {
+  const d = new Date(iso)
+  const day = d.getDate()
+  const month = d.toLocaleString('en-GB', { month: 'short' })
+  const year = d.getFullYear()
+  const time = d.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return `Ordered ${day} ${month} ${year}, ${time}`
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -80,7 +100,9 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
     submissionId
       ? supabaseAdmin
           .from('risk_flags')
-          .select('id, severity, status, explanation, required_action, triggering_answer, created_at')
+          .select(
+            'id, code, severity, status, explanation, required_action, triggering_answer, resolution_type, resolution_note, resolved_at, created_at',
+          )
           .eq('submission_id', submissionId)
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [], error: null } as const),
@@ -135,7 +157,11 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
       .order('created_at', { ascending: false }),
   ])
 
-  const flags = (flagsRes.data ?? []) as FlagRow[]
+  // The full flag rows (superset of RedFlagsTab's FlagRow): `code` + the
+  // resolution_* columns feed the runbook's flag cards; the tab reads its subset.
+  const flags = (flagsRes.data ?? []) as Array<FlagRowForView & { created_at: string }>
+  // Superset → subset: the tab reads only the FlagRow fields.
+  const flagRows: FlagRow[] = flags
   // Sign the private-bucket document paths so the "View Draft PDF" links open.
   const documents = await withSignedUrls(
     (docsRes.data ?? []) as Array<{
@@ -223,10 +249,93 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
 
   const openFlagCount = caseRow.open_flag_count
 
+  // ── Runbook surface — all derived from the rows already loaded above ────────
+  const intakeSubmitted = caseRow.completion_status === 'submitted'
+  const docsTotal = documents.length
+  // Open high/critical flags still needing a human sign-off = the delivery gate.
+  // Uses the one shared predicate so the banner never drifts from the real gate.
+  const openHighFlags = flags.filter((f) =>
+    isBlockingFlag({ severity: f.severity, status: f.status }),
+  ).length
+  const alreadyReleased =
+    caseRow.delivery_status === 'qa_review' ||
+    caseRow.delivery_status === 'escalated' ||
+    caseRow.delivery_status === 'approved' ||
+    caseRow.delivery_status === 'delivered'
+
+  const openInfoRequests = infoRequests.filter((r) => r.status === 'open').length
+  const answeredInfoRequestRows = infoRequests.filter((r) => r.status === 'submitted')
+  const openRevisionRows = revisions.filter(
+    (r) => r.kind === 'revision' && (r.status === 'submitted' || r.status === 'in_review'),
+  )
+
+  const runbookState: CaseRunbookState = {
+    intakeSubmitted,
+    deliveryStatus: caseRow.delivery_status,
+    riskLevel: caseRow.risk_level,
+    docsTotal,
+    docsFailed: documentFailures.length,
+    openHighFlags,
+    openRevisions: openRevisionRows.length,
+    answeredInfoRequests: answeredInfoRequestRows.length,
+    openInfoRequests,
+  }
+  const runbook = deriveRunbook(runbookState)
+  const lifecycle = deriveLifecycle({
+    intakeSubmitted,
+    deliveryStatus: caseRow.delivery_status,
+    docsTotal,
+  })
+  const flagViews = orderFlagViews(flags.map((f) => deriveFlagView(f)))
+  const flagSummary = summariseFlagViews(flagViews)
+
+  // Gate banner state: only meaningful for a generated, not-yet-delivered pack.
+  // Blocked while high flags are open; cleared (with a Release button) once none
+  // remain and it hasn't gone out yet. The real gate stays server-side — this only
+  // reflects it. Fail-safe: an already-released clear pack hides the banner (the
+  // runbook's "with the customer" state covers it).
+  const gate: GateState =
+    docsTotal === 0 || caseRow.delivery_status === 'delivered'
+      ? { show: false }
+      : openHighFlags > 0
+      ? { show: true, blocked: true, openHighFlags }
+      : alreadyReleased
+      ? { show: false }
+      : { show: true, blocked: false }
+
+  // Surface a step's real button only when exactly one target exists; 2+ → a
+  // pointer to the owning tab (no ambiguous button).
+  const openRevision =
+    openRevisionRows.length === 1
+      ? { id: openRevisionRows[0].id, awaitingRerelease: openRevisionRows[0].status === 'in_review' }
+      : null
+  const answeredInfoRequest =
+    answeredInfoRequestRows.length === 1 ? { id: answeredInfoRequestRows[0].id } : null
+
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
-        <CaseHeader c={caseRow} documentCount={documents.length} />
+        <CaseRunbook
+          caseId={caseRow.id}
+          displayName={customerDisplayName(caseRow)}
+          customerEmail={caseRow.customer_email}
+          tierLabel={planLabel(caseRow.plan_selected)}
+          riskLevel={caseRow.risk_level}
+          deliveryDeadline={caseRow.delivery_deadline}
+          caseStatus={caseRow.status}
+          orderedAtLabel={formatOrderedAt(caseRow.order_created_at)}
+          stripePaymentId={caseRow.stripe_payment_id}
+          runbook={runbook}
+          lifecycle={lifecycle}
+          flags={flagViews}
+          flagSummary={flagSummary}
+          gate={gate}
+          alreadyReleased={alreadyReleased}
+          openRevision={openRevision}
+          openRevisionCount={openRevisionRows.length}
+          answeredInfoRequest={answeredInfoRequest}
+          answeredInfoRequestCount={answeredInfoRequestRows.length}
+        />
 
         <Tabs.Root defaultValue="overview">
           <Tabs.List>
@@ -333,7 +442,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Params }
           </Tabs.Panel>
 
           <Tabs.Panel value="flags">
-            <RedFlagsTab caseId={caseRow.id} flags={flags} />
+            <RedFlagsTab caseId={caseRow.id} flags={flagRows} />
           </Tabs.Panel>
 
           <Tabs.Panel value="info">
