@@ -155,8 +155,11 @@ export function Section03AiTools({ answers, isSaving, onChange, onBack, onContin
                         e.stopPropagation()
                         removeCustomTool(t.name)
                       }}
+                      // Bottom-right: the card's content starts at the 16px padding,
+                      // so a top-left position sat directly on top of the tool name
+                      // and read as ghost text behind it. The checkbox owns top-right.
                       style={{
-                        position: 'absolute', top: 14, left: 14, background: 'transparent',
+                        position: 'absolute', bottom: 12, right: 14, background: 'transparent',
                         border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', padding: 0,
                       }}
                       aria-label={`Remove ${t.name}`}

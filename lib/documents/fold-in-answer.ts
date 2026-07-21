@@ -109,7 +109,8 @@ export async function foldInAnswer(orderId: string, infoRequestId: string): Prom
     : { status: 'flagged' as const, note: 'document not found after regenerate' }
 
   // 6. Set ONLY this doc's status. Passed -> a reviewable draft in place (no email;
-  //    the customer is already in the portal). Flagged -> stays in revision for the admin.
+  //    the customer is already in the portal). Flagged -> stays in revision for the
+  //    admin, who is handed the document in step 6b.
   if (doc) {
     await supabaseAdmin
       .from('generated_documents')
@@ -118,6 +119,34 @@ export async function foldInAnswer(orderId: string, infoRequestId: string): Prom
         delivery_status: check.status === 'passed' ? 'pending' : 'in_revision',
       })
       .eq('id', doc.id)
+  }
+
+  // 6b. A flagged re-QA leaves the doc in 'in_revision'. WITHOUT AN OWNER THAT IS A
+  //     DEAD END: the customer's card reads "we're working on your changes" forever,
+  //     the flag is closed in step 7 so the runbook says "nothing to do", and the pack
+  //     can never complete (observed in prod, 2026-07-21). Open a revision row already
+  //     in 'in_review' — the document IS regenerated, so the admin's existing
+  //     "Re-release & notify customer" step is the live action; releasing it flips the
+  //     doc back to 'pending' and emails the customer. No extra AI spend.
+  if (doc && check.status !== 'passed') {
+    const { error: revErr } = await supabaseAdmin.from('case_revisions').insert({
+      order_id: orderId,
+      submission_id: flag.submission_id,
+      document_types: [affectedDoc],
+      feedback_text:
+        `Regenerated from the customer's answer, but the quality check flagged it` +
+        `${check.note ? `: ${check.note}` : '.'} Review the draft, then re-release it to the customer.`,
+      kind: 'revision',
+      status: 'in_review',
+      metadata: { source: 'query_fold_in', info_request_id: info.id, qa_note: check.note ?? null },
+    })
+    if (revErr) {
+      await pingAdmin(
+        'A regenerated document needs manual release',
+        orderId,
+        `${affectedDoc} was regenerated but the quality check flagged it, and the revision hand-off could not be created (${revErr.message}). Please release it manually.`,
+      )
+    }
   }
 
   // 7. Close the flag as 'query' (the gap has been answered). The answer stays

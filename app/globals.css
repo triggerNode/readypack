@@ -604,7 +604,11 @@ button { font: inherit; cursor: pointer; }
   color: #fff;
 }
 .qz-cbx-check { opacity: 0; }
-.is-selected > .qz-cbx, .is-selected .qz-cbx { background: var(--accent-primary); border-color: var(--accent-primary); }
+/* The tick glyph is always white, so the box MUST fill green when checked or the
+   tick is invisible on a light background. Include `.qz-cbx.is-selected` — the
+   Section 10 declaration puts `is-selected` on the box ITSELF (the tool cards put
+   it on the parent card), and the two descendant selectors alone never matched it. */
+.is-selected > .qz-cbx, .is-selected .qz-cbx, .qz-cbx.is-selected { background: var(--accent-primary); border-color: var(--accent-primary); }
 .is-selected .qz-cbx-check { opacity: 1; }
 
 .qz-tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
