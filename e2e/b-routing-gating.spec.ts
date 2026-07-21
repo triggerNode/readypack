@@ -11,6 +11,7 @@ import {
   db,
   type ProvisionedOrder,
 } from './lib/journey'
+import { waitForEmailTo } from './lib/captured-emails'
 
 // ──────────────────────────────────────────────────────────────────────────
 // LAYER B — risk routing + auto-gen/held gating, all 10 personas.
@@ -67,12 +68,26 @@ test.describe('Layer B — realistic routing + gating (webhook → submit)', () 
       const order = await provisionViaWebhook(request, { email: persona.email, tier: persona.tier })
       provisioned.push(order)
 
+      // The welcome / magic-link email fires from the webhook handler on provision.
+      const welcome = await waitForEmailTo(persona.email, /questionnaire is ready/i)
+      expect(welcome, `${persona.company} should receive a welcome / magic-link email`).toBeTruthy()
+
       await seedAnswers(order.submissionId, persona.answers)
 
       const ctx = await customerContext(browser, persona.email)
       try {
         const { riskLevel } = await submitAs(ctx.request, order.submissionId)
         expect(riskLevel, `${persona.company} server-computed risk level`).toBe(persona.expectedRisk)
+
+        // The submission-received confirmation email fires from /api/intake/submit.
+        // Critical cases get NO self-serve portal link ("a specialist will be in
+        // touch"); every other level carries a portal link.
+        const confirmation = await waitForEmailTo(persona.email, /received your ReadyPack answers/i)
+        expect(confirmation, `${persona.company} should receive a submission confirmation email`).toBeTruthy()
+        expect(
+          confirmation!.hasPortalLink,
+          `${persona.company} (${persona.expectedRisk}) confirmation portal-link presence`,
+        ).toBe(persona.expectedRisk !== 'critical')
 
         // ── Gating: auto-gen enqueues a job; HELD enqueues none ────────────
         // This is the real contract — does the submit *trigger* generation?

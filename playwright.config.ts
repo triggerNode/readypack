@@ -11,6 +11,8 @@ const BASE_URL = process.env.SMOKE_BASE_URL ?? 'http://localhost:3000'
 
 export default defineConfig({
   testDir: './e2e',
+  // Clear the email-capture file once before the run (see e2e/global-setup.ts).
+  globalSetup: './e2e/global-setup.ts',
   // One worker: be gentle on the dev server and avoid tripping rate limits.
   workers: 1,
   fullyParallel: false,
@@ -32,7 +34,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: /(a-public-sweep|b-routing-gating|portal-ui)\.spec\.ts/,
+      testMatch: /(a-public-sweep|b-routing-gating|portal-ui|access-control|intake-journey)\.spec\.ts/,
     },
     // Admin-authed specs (reuse the saved admin session). Two members:
     //  • d-admin-actions — FREE checks of admin case-page controls (e.g. the
@@ -65,6 +67,12 @@ export default defineConfig({
     env: {
       ...process.env,
       E2E_SKIP_REAL_GENERATION: process.env.RUN_REAL_GENERATION === '1' ? '0' : '1',
+      // Capture outbound email to a file instead of sending it (see lib/resend.ts).
+      // ON for every managed test run so automated runs never touch the Resend
+      // quota and can assert exactly what would have been sent. NOTE: like the
+      // generation switch, this only takes effect on a server Playwright STARTS —
+      // if you reuse your own running dev server, export E2E_CAPTURE_EMAIL=1 there.
+      E2E_CAPTURE_EMAIL: '1',
     },
   },
 })

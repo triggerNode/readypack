@@ -17,6 +17,9 @@ import {
   db,
   type ProvisionedOrder,
 } from './lib/journey'
+import { waitForEmailTo, capturedFor } from './lib/captured-emails'
+import { inspectPdf, pdfHasText, pdfHasDraftWatermark, LOGO_PLACEHOLDER } from './lib/pdf-fidelity'
+import { uploadPersonaLogo, withLogo } from './lib/logo'
 
 // ──────────────────────────────────────────────────────────────────────────
 // LAYER C — the real post-generation lifecycle. GATED behind RUN_REAL_GENERATION=1.
@@ -36,18 +39,20 @@ import {
 // session), and the admin drives the real case-detail UI / REST endpoints with
 // the saved admin session.
 //
-// DISCOVERY worth flagging (see the run log): the admin "Generate Pack" button
-// (GeneratePackButton / triggerGenerationAction) and the standalone
-// "Approve & Deliver" button (ApprovePackButton) are defined in ActionForms.tsx
-// but are NOT rendered on any admin page. The shipped held-case path is:
-// generate (backend) → SIGN OFF each held flag on the case runbook (accept or
-// remediate + a required reason — the delivery-gate KEY) → the gate clears and the
-// admin clicks "Release for customer review" → the CUSTOMER approves in the portal.
-// Layer C exercises that real shipped path, and triggers held-case generation via
-// the real underlying seam (an admin-authenticated POST /api/generate — exactly
-// what triggerGenerationAction calls under the hood). Stage 3d's query loop (a gap
-// flag the customer answers, which auto-folds into the one affected document) is
-// exercised at the end on the same held pack.
+// The shipped held-case path is: generate → SIGN OFF each held flag on the case
+// runbook (accept or remediate + a required reason — the delivery-gate KEY) → the
+// gate clears and the admin clicks "Release for customer review" → the CUSTOMER
+// approves in the portal. Layer C exercises that real shipped path.
+//
+// NOTE on the "Generate Pack" trigger: the button IS rendered on the runbook (see
+// CaseRunbook.tsx; d-admin-actions.spec.ts clicks it for real and asserts a job
+// enqueues, in the free layer). Here in the PAID layer we trigger held-case
+// generation via the underlying seam instead (an admin-authenticated POST
+// /api/generate — exactly what triggerGenerationAction calls under the hood):
+// the button's realness is already covered by d-admin, and going through the seam
+// avoids tying a multi-minute real-generation wait to UI hydration timing.
+// Stage 3d's query loop (a gap flag the customer answers, which auto-folds into the
+// one affected document) is exercised at the end on the same held pack.
 //
 // Runs in the "authed" project (admin storageState + the setup dependency). The
 // customer side mints its own magic-link session per interaction.
@@ -73,7 +78,11 @@ let approvedType: string | null = null // the doc approved in the approve test
 async function provisionAndSubmit(persona: typeof ADVISER) {
   const order = await provisionViaWebhook(adminApi, { email: persona.email, tier: persona.tier })
   provisioned.push(order)
-  await seedAnswers(order.submissionId, persona.answers)
+  // Upload the persona's logo fixture the same shape the real upload route uses, so
+  // the generated pack actually carries a logo — this makes the Group 7 "logo
+  // present" fidelity check meaningful (and exercises the logo pipeline end to end).
+  const logoUrl = await uploadPersonaLogo(db(), persona, order.submissionId)
+  await seedAnswers(order.submissionId, withLogo(persona.answers, logoUrl))
   const customerApi = await pwRequest.newContext({
     baseURL: BASE_URL,
     storageState: await mintCustomerCookies(persona.email),
@@ -165,6 +174,12 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
     const docs = await listGeneratedDocs(autoPack.submissionId)
     expect(docs.length, 'adviser pack should have at least one generated document').toBeGreaterThan(0)
     expect(await orderDeliveryStatus(autoPack.orderId), 'released → qa_review').toBe('qa_review')
+
+    // The release (beforeAll) emailed the customer a "ready for review" notice.
+    expect(
+      await waitForEmailTo(ADVISER.email, /ready for review/i),
+      'releasing the pack should email the customer a delivery notice',
+    ).toBeTruthy()
   })
 
   // ── C2 — customer approves a single document and can download it ────────
@@ -243,11 +258,16 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
     await page.goto(`/admin/cases/${autoPack.orderId}`, { waitUntil: 'domcontentloaded' })
     await expect(page).not.toHaveURL(/\/admin\/login/)
     await openAdminTab(page, /Revisions/i)
-    await page.getByRole('button', { name: /Regenerate with AI/i }).click()
+    // The always-on CaseRunbook (above the tabs) offers the SAME revision actions
+    // as a convenience, so an un-scoped button name matches twice. Scope to the
+    // active tabpanel — only the selected panel is mounted (Tabs.Panel returns
+    // null when inactive), so this resolves to exactly the Revisions-tab control.
+    const revPanel = page.getByRole('tabpanel')
+    await revPanel.getByRole('button', { name: /Regenerate with AI/i }).click()
     // Regeneration runs the AI synchronously — wait for the "revised draft ready".
-    await expect(page.getByText(/Revised draft ready/i)).toBeVisible({ timeout: 3 * 60_000 })
-    await page.getByRole('button', { name: /Re-release & notify customer/i }).click()
-    await expect(page.getByText(/Re-released — customer notified/i)).toBeVisible({ timeout: 60_000 })
+    await expect(revPanel.getByText(/Revised draft ready/i)).toBeVisible({ timeout: 3 * 60_000 })
+    await revPanel.getByRole('button', { name: /Re-release & notify customer/i }).click()
+    await expect(revPanel.getByText(/Re-released — customer notified/i)).toBeVisible({ timeout: 60_000 })
 
     // Server side: revised doc is reviewable again (pending).
     await expect
@@ -302,6 +322,12 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
         return (data ?? []).length
       }, { timeout: 20_000, message: 'an open info request should be created' })
       .toBeGreaterThan(0)
+
+    // The request emailed the customer (needs_more_info).
+    expect(
+      await waitForEmailTo(ADVISER.email, /need a bit more information/i),
+      'requesting more info should email the customer',
+    ).toBeTruthy()
 
     // 2. Customer answers it in the portal remediation flow.
     const ctx = await customerContext(browser, ADVISER.email)
@@ -359,6 +385,96 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
       .toBe('resolved')
   })
 
+  // ── C4b — customer approves the WHOLE pack: it finalises and the completion ──
+  //          email fires ONCE (send-once), rolling the order up to delivered ─────
+  //
+  // Runs last on the adviser pack (after C2 approve / C3 revision / C4 info) — it
+  // finalises everything, so it must come after the tests that need draft docs.
+  test('customer approves every document; the pack completes and the completion email fires exactly once', async ({
+    browser,
+  }) => {
+    test.setTimeout(9 * 60_000)
+    const ctx = await customerContext(browser, ADVISER.email)
+    const cpage = await ctx.newPage()
+    try {
+      await cpage.goto(`/portal/${autoPack.orderId}`, { waitUntil: 'domcontentloaded' })
+      // Drive the pack to completion: repeatedly RE-QUERY the reviewable documents
+      // and approve each, until the order rolls up to 'delivered'. Re-querying (not a
+      // single up-front snapshot) is what makes this deterministic — a document can
+      // settle into an approvable state a beat after the list is taken (a late
+      // finalise from an earlier step, generation finishing), and a one-shot list
+      // silently misses it, leaving the pack one approval short of complete. The LAST
+      // approval fires sendPackCompleteEmail (send-once); approveDocViaPortal tolerates
+      // the flaky finalise-upload with its own retry.
+      await expect
+        .poll(
+          async () => {
+            // NOTE: the pack's 9 documents generate PROGRESSIVELY — their rows appear
+            // over time, so a one-shot list taken here can miss docs that generate a
+            // beat later. Re-listing every poll cycle is what closes that gap.
+            const reviewable = (await listGeneratedDocs(autoPack.submissionId)).filter(
+              (d) => d.deliveryStatus !== 'delivered' && d.deliveryStatus !== 'in_revision',
+            )
+            for (const d of reviewable) {
+              await approveDocViaPortal(cpage, autoPack.submissionId, d.documentType)
+            }
+            return orderDeliveryStatus(autoPack.orderId)
+          },
+          {
+            timeout: 6 * 60_000,
+            message: 'approving every reviewable document should roll the order up to delivered',
+          },
+        )
+        .toBe('delivered')
+    } finally {
+      await ctx.close()
+    }
+
+    // The completion email fired — exactly once (the unique pack_complete marker is
+    // an atomic send-once lock across the approve-all + last-per-doc paths).
+    const complete = await waitForEmailTo(ADVISER.email, /pack is complete/i, { timeoutMs: 60_000 })
+    expect(complete, 'a "pack is complete" email should be sent on completion').toBeTruthy()
+    const completeCount = capturedFor(ADVISER.email).filter((e) => /pack is complete/i.test(e.subject)).length
+    expect(completeCount, 'the completion email must send exactly once').toBe(1)
+  })
+
+  // ── C4c — output FIDELITY: the delivered pack LOOKS right ─────────────────
+  //          Real business name, logo present, and NO draft watermark on finals.
+  test('the delivered pack looks right: real business name, logo present, no draft watermark', async ({
+    browser,
+  }) => {
+    test.setTimeout(4 * 60_000)
+    const ctx = await customerContext(browser, ADVISER.email)
+    const page = await ctx.newPage()
+    try {
+      await page.goto(`/portal/${autoPack.orderId}`, { waitUntil: 'domcontentloaded' })
+      const finalCard = page.locator('[data-card-state="final"]').first()
+      await finalCard.waitFor({ state: 'visible', timeout: 30_000 })
+      const href = await finalCard.getByRole('link', { name: /Download PDF/i }).getAttribute('href')
+      expect(href, 'a delivered doc should expose a signed download link').toBeTruthy()
+
+      const res = await ctx.request.get(href!)
+      expect(res.ok(), 'the signed PDF URL should fetch').toBeTruthy()
+      const pdf = await inspectPdf(Buffer.from(await res.body()))
+
+      expect(pdf.pageCount, 'the delivered PDF should have real pages').toBeGreaterThan(0)
+      expect(
+        pdfHasText(pdf, 'Verde Consulting'),
+        'the PDF should carry the real business name, not "Customer <id>"',
+      ).toBeTruthy()
+      expect(
+        pdfHasText(pdf, LOGO_PLACEHOLDER),
+        'the logo should have rendered (no "CLIENT LOGO" placeholder text)',
+      ).toBeFalsy()
+      expect(
+        pdfHasDraftWatermark(pdf),
+        'a DELIVERED (final) document must NOT carry the DRAFT watermark',
+      ).toBeFalsy()
+    } finally {
+      await ctx.close()
+    }
+  })
+
   // ── C5 — high-risk HELD: admin generates, the gate blocks until each held ──
   //         flag is signed off on the runbook, then the admin releases ─────────
   test('high-risk case is held; the gate blocks until each held flag is signed off, then the admin releases', async ({ browser, page }) => {
@@ -381,8 +497,9 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
     }
     expect(await openHighBefore(), 'a held high-risk case should carry open high flags').toBeGreaterThan(0)
 
-    // Admin triggers generation (the real underlying seam — the "Generate Pack"
-    // button is orphaned, see the file header).
+    // Admin triggers generation via the real underlying seam. (The runbook's
+    // "Generate Pack" button IS wired — d-admin-actions clicks it for real; Layer C
+    // uses the seam here so the held pack is ready without re-driving that click.)
     await adminGenerate(adminApi, heldPack.orderId)
     const count = await waitForDocs(adminApi, heldPack, { min: 1, ceilingMs: 10 * 60_000 })
     expect(count, 'held pack should generate at least one document once triggered').toBeGreaterThan(0)
@@ -401,19 +518,41 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
     // AT A TIME, gating each on the DB — not on button text (a submitted sign-off
     // form flips to "Saving…" while its server action is in flight). Each sign-off
     // records an accept/remediate decision + a required reason and closes the flag.
+    //
+    // This case carries two blocking flags (ai_decision_making + annex_iii), so the
+    // loop runs twice. Two races to absorb: (a) a successful sign-off calls
+    // revalidatePath, re-rendering the whole runbook — so reload at the TOP for a
+    // clean DOM; (b) after a reload, the "Sign off" client onClick may not be
+    // attached the instant the button paints, so a single click can no-op — retry
+    // the expand click until the form's radio actually appears (same hydration-safe
+    // pattern as openAdminTab). Then verify the radio really checked before confirm,
+    // so we never submit an empty decision.
     for (let i = 0; i < 20; i++) {
       const before = await openHighBefore()
       if (before === 0) break
 
+      await page.reload({ waitUntil: 'domcontentloaded' })
       const signOff = page.getByRole('button', { name: /^Sign off$/i }).first()
-      if (!(await signOff.isVisible().catch(() => false))) {
-        await page.reload({ waitUntil: 'domcontentloaded' })
+      if (!(await signOff.isVisible({ timeout: 15_000 }).catch(() => false))) {
         continue
       }
-      await signOff.click()
-      // The form expands: choose a decision (clicking the label checks its radio),
-      // give the required reason, confirm.
-      await page.getByText('Accept with justification').first().click()
+
+      // Click "Sign off" until the sign-off form expands (its radio becomes visible).
+      const acceptRadio = page.locator('input[name="decision"][value="accept"]').first()
+      await expect(async () => {
+        if (!(await acceptRadio.isVisible().catch(() => false))) {
+          await signOff.click({ timeout: 2_000 }).catch(() => undefined)
+        }
+        await expect(acceptRadio).toBeVisible({ timeout: 2_000 })
+      }).toPass({ timeout: 30_000 })
+
+      // Choose "Accept with justification"; the label click checks its radio — retry
+      // until the radio reports checked.
+      await expect(async () => {
+        await page.getByText('Accept with justification').first().click()
+        await expect(acceptRadio).toBeChecked({ timeout: 1_000 })
+      }).toPass({ timeout: 10_000 })
+
       const note = page.locator('textarea[name="note"]').first()
       await note.waitFor({ state: 'visible', timeout: 10_000 })
       await note.fill(
@@ -435,6 +574,12 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
       expect(await orderDeliveryStatus(heldPack.orderId)).toBe('qa_review')
     }).toPass({ timeout: 30_000 })
 
+    // Releasing emailed the customer a "ready for review" delivery notice.
+    expect(
+      await waitForEmailTo(HELD.email, /ready for review/i),
+      'releasing the held pack should email the customer',
+    ).toBeTruthy()
+
     // The customer approves a document in the portal.
     const ctx = await customerContext(browser, HELD.email)
     const cpage = await ctx.newPage()
@@ -444,6 +589,28 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
       await draft.waitFor({ state: 'visible', timeout: 60_000 })
       const docType = await draft.getAttribute('data-doctype')
       await approveDocViaPortal(cpage, heldPack.submissionId, docType!)
+    } finally {
+      await ctx.close()
+    }
+  })
+
+  // ── C5b — the customer read-me ("What we noticed") renders with the MOFE line ──
+  //          Owner-authorised portal backup of the completion attachment. The held
+  //          pack carries real flags, so its read-me model exists → a real PDF.
+  test("the held pack's read-me renders as a PDF carrying the MOFE trading line", async ({ browser }) => {
+    test.setTimeout(3 * 60_000)
+    const ctx = await customerContext(browser, HELD.email)
+    try {
+      const res = await ctx.request.get(`/api/portal/${heldPack.orderId}/readme`)
+      expect(res.status(), 'the owner should get the read-me PDF (200)').toBe(200)
+      expect(res.headers()['content-type'] ?? '', 'the read-me should be a PDF').toContain('application/pdf')
+
+      const pdf = await inspectPdf(Buffer.from(await res.body()))
+      expect(pdf.pageCount, 'the read-me should have at least one page').toBeGreaterThan(0)
+      expect(
+        pdfHasText(pdf, 'MOFE Ltd') && pdfHasText(pdf, '16633320'),
+        'the read-me should carry the MOFE trading-disclosure line',
+      ).toBeTruthy()
     } finally {
       await ctx.close()
     }
@@ -502,12 +669,21 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
     await page.goto(`/admin/cases/${heldPack.orderId}`, { waitUntil: 'domcontentloaded' })
     const queryBtn = page.getByRole('button', { name: /Query the customer/i }).first()
     await expect(queryBtn).toBeVisible({ timeout: 15_000 })
-    await queryBtn.click()
 
     // The AI drafts a question into the message box; wait for it, else type our own
     // (the field is required, min 10 chars). Either way, review-then-send is real.
-    const message = page.locator('textarea[name="message"]')
-    await message.waitFor({ state: 'visible', timeout: 10_000 })
+    // Scope to the query form: the always-present whole-case "Request More Info" form
+    // ALSO has a name="message" textarea (same placeholder once drafting finishes), so
+    // an un-scoped locator matches twice — pin to the form that owns the unique
+    // "Send to customer" button. Click "Query the customer" until that form opens
+    // (hydration-safe: the client onClick may not be attached the instant it paints).
+    const message = page.locator('form:has(button:has-text("Send to customer")) textarea[name="message"]')
+    await expect(async () => {
+      if (!(await message.isVisible().catch(() => false))) {
+        await queryBtn.click({ timeout: 2_000 }).catch(() => undefined)
+      }
+      await expect(message).toBeVisible({ timeout: 2_000 })
+    }).toPass({ timeout: 30_000 })
     await expect(async () => {
       if ((await message.inputValue()).trim().length < 10) {
         await message.fill(
@@ -532,6 +708,12 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
         return data?.status ?? null
       }, { timeout: 30_000, message: 'a flag-linked info request should be created' })
       .toBe('open')
+
+    // The query emailed the customer the AI-drafted question (needs_more_info).
+    expect(
+      await waitForEmailTo(HELD.email, /need a bit more information/i),
+      'querying the customer should email them the question',
+    ).toBeTruthy()
 
     // 2. Customer answers it in the portal remediation flow. Answering an
     //    info-request that carries a risk_flag_id kicks the fold-in (kickFoldIn).
@@ -586,6 +768,11 @@ test.describe.serial('Layer C — real generation lifecycle (gated)', () => {
       .select('action_type')
       .eq('target_id', qflag!.id)
       .eq('action_type', 'query_auto_regenerated')
-    expect((audit ?? []).length, 'a query_auto_regenerated audit event should be written').toBeGreaterThan(0)
+    // Idempotency (5.3b): EXACTLY one regeneration — guards the known 2nd-answer
+    // double-fire edge that was fixed. More than one = the fold-in ran twice.
+    expect(
+      (audit ?? []).length,
+      'the fold-in must regenerate the affected doc exactly once (idempotent)',
+    ).toBe(1)
   })
 })

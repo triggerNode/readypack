@@ -55,3 +55,6 @@ next-env.d.ts
 
 # Playwright stored auth state (contains live session tokens)
 /e2e/.auth/
+
+# Playwright test-only captured emails (E2E_CAPTURE_EMAIL) — never committed
+/e2e/.captured-emails.jsonl
