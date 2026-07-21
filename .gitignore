@@ -58,3 +58,9 @@ next-env.d.ts
 
 # Playwright test-only captured emails (E2E_CAPTURE_EMAIL) — never committed
 /e2e/.captured-emails.jsonl
+
+# Ad-hoc local ops/debug scripts. rp-watch.mjs is the one we keep (it is
+# referenced by the manual-test playbook + session brief); the rest are scratch.
+/rp-*.mjs
+!/rp-watch.mjs
+/_renderproof.mts
