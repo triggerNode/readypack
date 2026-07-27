@@ -3,7 +3,7 @@ import styles from '../landing.module.css'
 import { Nav } from '@/components/layout/Nav'
 import { Footer } from '@/components/layout/Footer'
 import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
-import { Article50Disclosure } from '@/components/layout/Article50Disclosure'
+import { AiDisclosure } from '@/components/layout/AiDisclosure'
 
 const ICON_STROKE = 1.5
 
@@ -11,7 +11,7 @@ export default function GapScanPage() {
   return (
     <>
       <AnnouncementBar />
-      <Article50Disclosure />
+      <AiDisclosure />
       <Nav />
 
       <main>

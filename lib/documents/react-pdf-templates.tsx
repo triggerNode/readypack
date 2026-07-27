@@ -917,8 +917,7 @@ function Footer({ companyName }: { companyName: string }) {
         />
       </View>
       <Text style={s.footerDisclosure}>
-        This document was securely generated utilizing the ReadyPack compliance
-        orchestration framework under deterministic code-enforced guardrails.
+        Drafted with AI assistance and quality-checked by ReadyPack before delivery.
       </Text>
     </View>
   )
@@ -1816,8 +1815,7 @@ export function renderCombinedPackCover(opts: {
           <Text>Confidential</Text>
         </View>
         <Text style={s.aiActDisclosure} fixed>
-          This document was securely generated utilizing the ReadyPack compliance
-          orchestration framework under deterministic code-enforced guardrails.
+          Drafted with AI assistance and quality-checked by ReadyPack before delivery.
         </Text>
       </Page>
     </Document>

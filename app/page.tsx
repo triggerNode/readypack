@@ -29,7 +29,7 @@ import styles from './landing.module.css'
 import { Nav } from '@/components/layout/Nav'
 import { Footer } from '@/components/layout/Footer'
 import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
-import { Article50Disclosure } from '@/components/layout/Article50Disclosure'
+import { AiDisclosure } from '@/components/layout/AiDisclosure'
 import { HeroSection } from '@/components/landing/HeroSection'
 import { PricingSection } from '@/components/landing/PricingSection'
 import { FaqSection } from '@/components/landing/FaqSection'
@@ -127,7 +127,7 @@ export default function HomePage() {
       <AnnouncementBar />
 
       {/* 1b. Article 50 disclosure */}
-      <Article50Disclosure />
+      <AiDisclosure />
 
       {/* 2. Nav */}
       <Nav />

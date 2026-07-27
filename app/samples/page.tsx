@@ -319,7 +319,7 @@ function Doc02() {
           rows={[
             ['Controller', `${COMPANY}`],
             ['Address', '4th Floor, 87 Hatton Garden, London EC1N 8JT'],
-            ['ICO Registration', 'ZA-XXXXXX'],
+            ['ICO Registration', 'ZA000000 (example)'],
             ['Contact for data rights', 'privacy@brightfielddigital.example'],
           ]}
         />
