@@ -21,8 +21,10 @@ export function WelcomeScreen({ onStart, isReturning }: Props) {
             marginBottom: 18,
           }}
         >
-          You are entering an AI-orchestrated environment. All questionnaire responses
-          are processed under structural pseudonymization and zero-egress boundaries.
+          We use your answers to produce your pack, and for nothing else. Before they go to
+          the AI model that drafts your documents, we replace your company name, your name,
+          your role and your email with placeholders, then put them back afterwards. The
+          model provider does not train its models on your data.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
           <span className="qz-welcome-check">
