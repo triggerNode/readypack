@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Briefcase,
   CalendarClock,
-  CalendarX,
   Check,
   ClipboardList,
   Clock,
@@ -18,6 +17,7 @@ import {
   Lock,
   Mail,
   MessageSquare,
+  RefreshCw,
   Search,
   Shield,
   ShieldCheck,
@@ -31,7 +31,6 @@ import { Footer } from '@/components/layout/Footer'
 import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
 import { Article50Disclosure } from '@/components/layout/Article50Disclosure'
 import { HeroSection } from '@/components/landing/HeroSection'
-import { GapScanSection } from '@/components/landing/GapScanSection'
 import { PricingSection } from '@/components/landing/PricingSection'
 import { FaqSection } from '@/components/landing/FaqSection'
 
@@ -137,68 +136,95 @@ export default function HomePage() {
         {/* 3. Hero */}
         <HeroSection />
 
-        {/* 4. Gap Scan */}
-        <GapScanSection />
-
-        {/* 5. Three deadlines */}
+        {/* 4. The problem — how this lands on your desk */}
         <section className={`${styles.section} ${styles['tinted-section']}`}>
           <div className={styles.container}>
             <div className={styles['sec-head']}>
               <span className={styles.pill}>
                 <span className={styles['pill-dot']} />
-                Regulatory calendar
+                The moment it lands
               </span>
-              <h2>Three deadlines. One pack.</h2>
+              <h2>It usually starts with an email</h2>
               <p>
-                The regulatory calendar is set. Here is exactly what changes — and why it
-                matters to your business.
+                Nobody goes looking for AI paperwork. It turns up attached to something
+                you were already trying to win.
               </p>
             </div>
-            <div className={styles['dl-grid']}>
-              <div className={`${styles.card} ${styles['dl-card']}`}>
+            <div className={styles['scn-grid']}>
+              <div className={`${styles.card} ${styles.scn}`}>
                 <div className={styles['card-icon']}>
-                  <CalendarClock width={22} height={22} strokeWidth={ICON_STROKE} />
+                  <Mail width={22} height={22} strokeWidth={ICON_STROKE} />
                 </div>
-                <span className={`${styles['dl-date']} ${styles.red}`}>19 June 2026</span>
-                <h3>UK Data (Use and Access) Act — Section 103</h3>
-                <p className={styles['dl-body']}>
-                  From this date, organisations that process personal data must have a
-                  formal complaints handling procedure in place. The ICO can investigate
-                  and act on non-compliance. ReadyPack&apos;s Complaints Procedure Pack is
-                  built specifically around this obligation.
+                <h3>A client sends a vendor questionnaire</h3>
+                <p>
+                  They want your AI use statement, your privacy notice and your complaints
+                  procedure. You have a fortnight to reply and nothing written down. The
+                  work is already yours to lose.
                 </p>
               </div>
-              <div className={`${styles.card} ${styles['dl-card']}`}>
+              <div className={`${styles.card} ${styles.scn}`}>
                 <div className={styles['card-icon']}>
-                  <Cpu width={22} height={22} strokeWidth={ICON_STROKE} />
+                  <Briefcase width={22} height={22} strokeWidth={ICON_STROKE} />
                 </div>
-                <span className={`${styles['dl-date']} ${styles.red}`}>2 August 2026</span>
-                <h3>EU AI Act — Transparency &amp; Enforcement</h3>
-                <p className={styles['dl-body']}>
-                  The majority of the AI Act&apos;s rules come into force. Article 50
-                  transparency requirements begin applying — meaning organisations using
-                  AI in customer-facing or decision-making contexts must disclose it. Our
-                  AI Use Statement and Customer Disclosure Snippets cover this directly.
+                <h3>A tender asks whether AI is involved</h3>
+                <p>
+                  Government buyers now ask suppliers, in writing, whether AI or machine
+                  learning is used in the services they intend to provide. You need an
+                  answer you can put your name to.
                 </p>
               </div>
-              <div className={`${styles.card} ${styles['dl-card']}`}>
+              <div className={`${styles.card} ${styles.scn}`}>
                 <div className={styles['card-icon']}>
-                  <Lock width={22} height={22} strokeWidth={ICON_STROKE} />
+                  <RefreshCw width={22} height={22} strokeWidth={ICON_STROKE} />
                 </div>
-                <span className={`${styles['dl-date']} ${styles.amber}`}>Ongoing</span>
-                <h3>UK GDPR — Data Protection by Design</h3>
-                <p className={styles['dl-body']}>
-                  The ICO&apos;s enforcement of data protection documentation requirements
-                  doesn&apos;t pause. Privacy notices, DPIAs, and vendor registers are
-                  procurement table-stakes. All three are in your pack.
+                <h3>A renewal comes back with AI clauses in it</h3>
+                <p>
+                  The standard UK advertiser–agency agreement was updated in December
+                  2025. It expects you to name the AI tools you use, show your safeguards
+                  and keep records. Most small firms have none of that written down.
                 </p>
               </div>
             </div>
-            <p className={styles['dl-bottom']}>
-              These aren&apos;t future considerations. They are live obligations. If you
-              sell to enterprise customers, those customers are already checking for this
-              documentation.
-            </p>
+          </div>
+        </section>
+
+        {/* 5. The guide — why I built this */}
+        <section className={styles.section}>
+          <div className={styles.container}>
+            <div className={styles.founder}>
+              <div className={styles['founder-head']}>
+                <div className={styles['founder-photo']}>OA</div>
+                <div className={styles['founder-meta']}>
+                  <span className={styles.pill}>From the founder</span>
+                  <h3>Why I built this</h3>
+                </div>
+              </div>
+              <div className={styles['founder-body']}>
+                <p>
+                  Small firms don&apos;t skip this paperwork because they&apos;re
+                  careless. They skip it because there is always something more urgent,
+                  and because the two obvious routes both feel wrong: a consultant&apos;s
+                  quote that starts around £3,000, or a free template that falls apart the
+                  moment a client reads it properly.
+                </p>
+                <p>
+                  ReadyPack is the middle option. You answer questions about how your
+                  business actually works, including which AI tools you use, who they
+                  touch and what data goes near them. You get nine documents built around those
+                  answers, rather than someone else&apos;s policy with your name pasted
+                  into it.
+                </p>
+                <p>
+                  I&apos;ll be straight about what this is and isn&apos;t. It&apos;s
+                  paperwork, done properly and quickly. It is not legal advice and it is
+                  not a certificate. If your situation is complicated enough to need a
+                  solicitor, I&apos;d rather tell you that than sell you a pack.
+                </p>
+              </div>
+              <div className={styles['founder-attr']}>
+                <strong>Olu A.</strong> · Founder, ReadyPack · MOFE Ltd
+              </div>
+            </div>
           </div>
         </section>
 
@@ -256,11 +282,12 @@ export default function HomePage() {
                   <span className={styles['how-num']}>01</span>
                 </div>
                 <div className={styles['how-time']}>Day 0</div>
-                <h3>Answer 15 minutes of questions</h3>
+                <h3>Answer questions about your business</h3>
                 <p>
-                  Walk through a guided questionnaire about how your business uses data
-                  and AI. No technical background needed — we ask in plain English about
-                  your products, your customers, and your tools.
+                  A guided questionnaire about how you use data and AI, asked in plain
+                  English. No technical background needed. Set aside 20 to 35 minutes,
+                  depending on how many AI tools you use. You can save and come back to
+                  it.
                 </p>
               </div>
               <div className={styles['how-step']}>
@@ -271,11 +298,11 @@ export default function HomePage() {
                   <span className={styles['how-num']}>02</span>
                 </div>
                 <div className={styles['how-time']}>Within 24 hours</div>
-                <h3>AI drafts it. An expert reviews it.</h3>
+                <h3>It gets drafted, then checked</h3>
                 <p>
-                  Our document engine maps your answers to current regulatory frameworks
-                  and builds all nine documents. An experienced compliance reviewer then
-                  checks every pack before it leaves us — not just the AI output.
+                  Your answers are mapped to the relevant rules and all nine documents are
+                  generated from them. Every pack is quality-checked before it goes out,
+                  and anything higher-risk gets pulled aside for a proper manual look.
                 </p>
               </div>
               <div className={styles['how-step']}>
@@ -307,18 +334,18 @@ export default function HomePage() {
                   </span>
                   <span className={styles.h4}>48-hour delivery</span>
                 </div>
-                <p>From questionnaire to completed pack, guaranteed.</p>
+                <p>From finished questionnaire to completed pack.</p>
               </div>
               <div className={styles['feat-item']}>
                 <div className={styles['feat-item-head']}>
                   <span className={styles['feat-item-icon']}>
                     <UserCheck width={22} height={22} strokeWidth={ICON_STROKE} />
                   </span>
-                  <span className={styles.h4}>Expert review on every pack</span>
+                  <span className={styles.h4}>Checked before it ships</span>
                 </div>
                 <p>
-                  Every document is checked by a human compliance reviewer before
-                  delivery.
+                  Every pack is quality-checked, and higher-risk cases are held back for
+                  manual review.
                 </p>
               </div>
               <div className={styles['feat-item']}>
@@ -328,98 +355,72 @@ export default function HomePage() {
                   </span>
                   <span className={styles.h4}>Three regulations, one process</span>
                 </div>
-                <p>UK GDPR, EU AI Act, and DUAA — covered in a single intake.</p>
+                <p>UK GDPR, the EU AI Act and DUAA, covered in a single intake.</p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* 9. Who this is for */}
+        {/* 9. Where the rules stand */}
         <section className={`${styles.section} ${styles['tinted-section']}`}>
           <div className={styles.container}>
             <div className={styles['sec-head']}>
-              <span className={styles.pill}>Trigger moments</span>
-              <h2>Built for the moment when compliance lands on your desk</h2>
+              <span className={styles.pill}>
+                <span className={styles['pill-dot']} />
+                Where the rules stand
+              </span>
+              <h2>These aren&apos;t deadlines to prepare for</h2>
+              <p>They already apply. Here is the honest state of each one.</p>
             </div>
-            <div className={styles['scn-grid']}>
-              <div className={`${styles.card} ${styles.scn}`}>
+            <div className={styles['dl-grid']}>
+              <div className={`${styles.card} ${styles['dl-card']}`}>
                 <div className={styles['card-icon']}>
-                  <Mail width={22} height={22} strokeWidth={ICON_STROKE} />
+                  <CalendarClock width={22} height={22} strokeWidth={ICON_STROKE} />
                 </div>
-                <h3>Your enterprise customer just sent a vendor questionnaire</h3>
-                <p>
-                  They want to see your AI governance documentation, your privacy notice,
-                  and your complaints procedure. You have two weeks to respond credibly.
-                  ReadyPack gives you exactly what they&apos;re asking for.
+                <span className={`${styles['dl-date']} ${styles.amber}`}>
+                  In force since June 2026
+                </span>
+                <h3>Section 103 of the UK Data (Use and Access) Act</h3>
+                <p className={styles['dl-body']}>
+                  Organisations that handle personal data need a formal complaints
+                  procedure. That date has passed, so this is a live obligation rather
+                  than something to get ready for. The Complaints Procedure Pack covers
+                  it.
                 </p>
               </div>
-              <div className={`${styles.card} ${styles.scn}`}>
+              <div className={`${styles.card} ${styles['dl-card']}`}>
                 <div className={styles['card-icon']}>
-                  <Briefcase width={22} height={22} strokeWidth={ICON_STROKE} />
+                  <Cpu width={22} height={22} strokeWidth={ICON_STROKE} />
                 </div>
-                <h3>Your tender requires AI and data governance documentation</h3>
-                <p>
-                  You&apos;re bidding for a contract that lists compliance documentation
-                  as a qualifying requirement. Without it, you don&apos;t make the
-                  shortlist. With ReadyPack, you make the deadline.
+                <span className={`${styles['dl-date']} ${styles.amber}`}>
+                  Phasing in through 2026–2027
+                </span>
+                <h3>EU AI Act transparency rules</h3>
+                <p className={styles['dl-body']}>
+                  If you have customers in the EU and AI touches them, you are expected to
+                  say so. The obligations arrive in stages, and the dates have already
+                  moved once. The AI Use Statement and Customer Disclosure Snippets are
+                  built for this.
                 </p>
               </div>
-              <div className={`${styles.card} ${styles.scn}`}>
+              <div className={`${styles.card} ${styles['dl-card']}`}>
                 <div className={styles['card-icon']}>
-                  <CalendarX width={22} height={22} strokeWidth={ICON_STROKE} />
+                  <Lock width={22} height={22} strokeWidth={ICON_STROKE} />
                 </div>
-                <h3>You&apos;ve seen the August 2026 deadline and have nothing ready</h3>
-                <p>
-                  The EU AI Act enforcement date is approaching. You know you should have
-                  documentation in place. You don&apos;t know where to start. The
-                  questionnaire takes 15 minutes. The pack arrives in 48 hours.
+                <span className={`${styles['dl-date']} ${styles.amber}`}>Ongoing</span>
+                <h3>Data protection by design, under UK GDPR</h3>
+                <p className={styles['dl-body']}>
+                  Privacy notices, impact assessments and vendor registers have been
+                  expected for years. They are table stakes in most procurement reviews.
+                  All three are in your pack.
                 </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 10. Founder note */}
-        <section className={styles.section}>
-          <div className={styles.container}>
-            <div className={styles.founder}>
-              <div className={styles['founder-head']}>
-                <div className={styles['founder-photo']}>OT</div>
-                <div className={styles['founder-meta']}>
-                  <span className={styles.pill}>From the founder</span>
-                  <h3>Why I built this</h3>
-                </div>
-              </div>
-              <div className={styles['founder-body']}>
-                <p>
-                  For two years I ran compliance readiness workshops for SMEs. The
-                  question I heard most wasn&apos;t &ldquo;which regulation applies to
-                  me?&rdquo; — they&apos;d already Googled that. It was: &ldquo;we know we
-                  need to sort this. We just haven&apos;t had time.&rdquo;
-                </p>
-                <p>
-                  These weren&apos;t careless organisations. They were teams under real
-                  pressure — a founder who&apos;d just taken on a new enterprise client,
-                  an operations lead who&apos;d been handed the DPO role alongside their
-                  other responsibilities, a recruitment firm trying to respond to an AI
-                  governance clause in a bid.
-                </p>
-                <p>
-                  The existing options were a consulting invoice starting at £3,000 or a
-                  generic template that wouldn&apos;t pass a procurement review. I
-                  thought there was a better way.
-                </p>
-                <p>
-                  ReadyPack is a delivery problem, not a knowledge problem. The documents
-                  aren&apos;t complicated — getting them done is. That&apos;s what we
-                  solve.
-                </p>
-              </div>
-              <div className={styles['founder-attr']}>
-                <strong>Olu Tayo</strong> · Founder, ReadyPack · Compliance delivery
-                specialist
               </div>
             </div>
+            <p className={styles['dl-bottom']}>
+              The bigger point isn&apos;t the regulator. It&apos;s that your clients are
+              starting to ask, and &ldquo;we&apos;re working on it&rdquo; is a weak answer
+              when a contract is on the table.
+            </p>
           </div>
         </section>
 
@@ -517,13 +518,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-            <div className={styles.pullquote}>
-              &ldquo;The DPIA template was exactly what our enterprise customer needed to
-              see. It would have cost us four times this in consulting fees.&rdquo;
-              <span className={styles['pullquote-attr']}>
-                — James O&apos;Brien, Operations Director
-              </span>
-            </div>
           </div>
         </section>
 
@@ -540,7 +534,7 @@ export default function HomePage() {
               <h2>Our guarantee</h2>
               <div className={styles['guarantee-body']}>
                 <p>
-                  We don&apos;t have a wall of testimonials to show you — and we
+                  We don&apos;t have a wall of testimonials to show you, and we
                   won&apos;t manufacture them. We&apos;re a new product and we&apos;re
                   honest about that.
                 </p>
@@ -556,10 +550,10 @@ export default function HomePage() {
                   14-day full refund
                 </span>
                 <span className={`${styles.pill} ${styles['pill-rounded']}`}>
-                  Expert-reviewed before delivery
+                  Quality-checked before delivery
                 </span>
                 <span className={`${styles.pill} ${styles['pill-rounded']}`}>
-                  Delivered in 48 hours or it&apos;s free
+                  Delivered within 48 hours
                 </span>
               </div>
             </div>
@@ -576,7 +570,7 @@ export default function HomePage() {
                   See what you&apos;re getting before you buy
                 </h3>
                 <p className={styles['sample-desc']}>
-                  Every pack is tailored to your business — but the quality is
+                  Every pack is tailored to your business, but the quality is
                   consistent. View a redacted sample of our AI Use Statement to see the
                   standard you can expect.
                 </p>
@@ -627,16 +621,16 @@ export default function HomePage() {
         <section className={styles['finalcta-wrap']}>
           <div className={styles['finalcta-glow']} />
           <div className={`${styles.container} ${styles.finalcta}`}>
-            <h2>The deadline is coming. Your documents aren&apos;t ready.</h2>
+            <h2>Be the supplier who already has it ready.</h2>
             <p className={styles['finalcta-sub']}>
-              The questionnaire takes 15 minutes. The pack arrives in 48 hours. The
-              deadlines are fixed.
+              Answer the questionnaire today and the documents land in your inbox within
+              48 hours, ready to send to the next client who asks.
             </p>
             <a
               href="#pricing"
               className={`${styles.btn} ${styles['btn-primary']} ${styles['btn-lg']}`}
             >
-              Get Your Pack — from £249
+              Get Your Pack from £249
               <ArrowRight width={16} height={16} strokeWidth={ICON_STROKE} />
             </a>
             <div className={styles['finalcta-foot']}>

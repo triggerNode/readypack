@@ -53,18 +53,19 @@ export function HeroSection() {
 
       <div className={`${styles.container} ${styles['hero-inner']}`}>
         <span className={styles['hero-newpill']}>
-          <span className={styles.tag}>New</span>
-          <span>Free Gap Scan now live</span>
+          <span className={styles.tag}>For</span>
+          <span>UK agencies, recruiters and small firms using AI</span>
           <span className={styles.pip} aria-hidden="true" />
         </span>
         <h1>
-          Compliance-ready in <span className={styles.grad}>48 hours</span>
+          When a client asks how you use AI,
           <br />
-          <span className={styles.muted}>— not 48 days.</span>
+          <span className={styles.grad}>have the answer ready.</span>
         </h1>
         <p className={styles['hero-sub']}>
-          Nine documents that UK GDPR, the EU AI Act and DUAA require. AI-generated,
-          expert-reviewed, delivered for £499. Built for SMEs facing the 2026 deadlines.
+          Nine documents that cover your AI and data paperwork: the use statement, the
+          staff policy, the risk register, the vendor list and the rest. Built from your
+          answers, delivered in 48 hours. From £249, paid once.
         </p>
         <div className={styles['hero-ctas']}>
           <a
@@ -74,13 +75,13 @@ export function HeroSection() {
             Get Your Pack <ArrowRight width={16} height={16} strokeWidth={ICON_STROKE} />
           </a>
           <a
-            href="#gap-scan"
+            href="/samples"
             className={`${styles.btn} ${styles['btn-secondary']} ${styles['btn-lg']}`}
           >
             <span className={styles['hero-cta-play']} aria-hidden="true">
               <Play width={12} height={12} strokeWidth={ICON_STROKE} />
             </span>
-            Try Free Gap Scan
+            See a Sample
           </a>
         </div>
         <div className={styles['hero-price']}>
@@ -92,7 +93,7 @@ export function HeroSection() {
         <div className={`${styles['hero-stat']} ${styles.s1}`}>
           <span className={styles.label}>Per pack</span>
           <span className={styles.value}>
-            9 documents <span className={styles.badge}>REVIEWED</span>
+            9 documents <span className={styles.badge}>TAILORED</span>
           </span>
         </div>
         <div className={`${styles['hero-stat']} ${styles.s2}`}>
@@ -118,8 +119,8 @@ export function HeroSection() {
               <ShieldCheck width={14} height={14} strokeWidth={ICON_STROKE} />
             </span>
             <span className={styles.stack}>
-              <span className={styles.label}>Reviewed by</span>
-              <span className={styles.value}>Compliance counsel</span>
+              <span className={styles.label}>Before delivery</span>
+              <span className={styles.value}>QA-checked</span>
             </span>
           </div>
         </div>

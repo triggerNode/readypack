@@ -124,7 +124,7 @@ export default async function ConfirmationPage({ searchParams }: Props) {
           <p className={styles.subhead}>
             Your intake questionnaire link has been sent to{' '}
             <span className={styles.email}>{email || 'the email on file'}</span>. Click the link in
-            that email to begin — your progress saves automatically so you can pause and return at
+            that email to begin. Your progress saves automatically so you can pause and return at
             any time.
           </p>
 
@@ -168,7 +168,7 @@ export default async function ConfirmationPage({ searchParams }: Props) {
                   <p className={styles.stepHeading}>Check your inbox</p>
                   <p className={styles.stepBody}>
                     We&apos;ve sent your intake link to your email. Click it to start your
-                    questionnaire — most businesses take 20–35 minutes, and you can save and
+                    questionnaire. Most businesses take 20–35 minutes, and you can save and
                     return at any point.
                   </p>
                 </div>
@@ -229,7 +229,7 @@ export default async function ConfirmationPage({ searchParams }: Props) {
           <p className={styles.ctaFoot}>
             We&apos;ve sent a secure link to{' '}
             <strong>{email || 'the email on file'}</strong>. Click it to open your questionnaire.
-            Use the same link to return any time — your progress is saved.{' '}
+            Use the same link to return any time. Your progress is saved.{' '}
             <Link href="/start" style={{ color: 'var(--text-accent, #16A34A)', textDecoration: 'underline' }}>
               Return to your questionnaire →
             </Link>
@@ -245,7 +245,7 @@ export default async function ConfirmationPage({ searchParams }: Props) {
       <footer className={styles.footer}>
         <div className={`${styles.container} ${styles.footerInner}`}>
           <span className={styles.footerLegal}>
-            ReadyPack is a service of MOFE Ltd (No. 16633320) · Not legal advice —
+            ReadyPack is a service of MOFE Ltd (No. 16633320) · Not legal advice.
             documentation support.
           </span>
           <span className={styles.footerLinks}>

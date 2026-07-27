@@ -26,7 +26,7 @@ import { DocumentControl } from './_components/DocumentControl'
 import { SnippetCard } from './_components/SnippetCard'
 
 export const metadata: Metadata = {
-  title: 'Sample Compliance Documents — ReadyPack',
+  title: 'Sample Compliance Documents | ReadyPack',
   description:
     'Preview the 9 premium compliance documents included in every ReadyPack. AI Use Statement, Privacy Notice Addendum, Risk Register, DPIA, and more.',
 }

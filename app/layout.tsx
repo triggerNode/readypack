@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'ReadyPack — AI Compliance Documentation',
+    default: 'ReadyPack | AI Compliance Documentation',
     template: '%s · ReadyPack',
   },
   description:

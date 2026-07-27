@@ -8,7 +8,7 @@ import styles from '../legal.module.css'
 const ICON_STROKE = 1.5
 
 export const metadata = {
-  title: 'Privacy Policy — ReadyPack',
+  title: 'Privacy Policy | ReadyPack',
 }
 
 export default function PrivacyPage() {

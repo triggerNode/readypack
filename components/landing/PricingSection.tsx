@@ -1,28 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { AlarmClock, Check, Star } from 'lucide-react'
 import styles from '@/app/landing.module.css'
 
 const ICON_STROKE = 1.5
 
-const EU_AI_ACT_DATE_MS = new Date('2026-08-02T00:00:00Z').getTime()
-const MS_PER_DAY = 1000 * 60 * 60 * 24
-
 type Tier = 'solo' | 'procurement_ready' | 'adviser'
 
-function computeDaysUntil() {
-  return Math.max(0, Math.ceil((EU_AI_ACT_DATE_MS - Date.now()) / MS_PER_DAY))
-}
-
 export function PricingSection() {
-  const [daysUntil, setDaysUntil] = useState<number | null>(null)
   const [loadingTier, setLoadingTier] = useState<Tier | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  useEffect(() => {
-    setDaysUntil(computeDaysUntil())
-  }, [])
 
   async function handleCheckout(tier: Tier) {
     if (loadingTier) return
@@ -56,7 +44,7 @@ export function PricingSection() {
         <div className={styles['sec-head']}>
           <span className={styles.pill}>Pricing</span>
           <h2>Clear pricing. No recurring fees.</h2>
-          <p>Pay once. Get compliant. No subscription required.</p>
+          <p>One payment, one pack. No subscription, no retainer.</p>
         </div>
 
         <div className={styles['urgency-strip']}>
@@ -67,8 +55,7 @@ export function PricingSection() {
               strokeWidth={ICON_STROKE}
               className={styles['urgency-icon']}
             />
-            EU AI Act enforcement begins 2 August 2026 —{' '}
-            <span suppressHydrationWarning>{daysUntil ?? '—'}</span> days from now
+            Pay once. Your pack is delivered within 48 hours.
           </span>
         </div>
 
@@ -114,7 +101,7 @@ export function PricingSection() {
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Human review
+                Quality-checked before delivery
               </li>
             </ul>
             <div className={styles['price-cta']}>
@@ -148,14 +135,14 @@ export function PricingSection() {
               <li className={styles.star}>
                 <Star width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
                 <span>
-                  <strong>Procurement Q&amp;A Bank</strong> — 40 pre-answered vendor
+                  <strong>Procurement Q&amp;A Bank</strong>: 40 pre-answered vendor
                   questionnaire responses, ready to copy into any enterprise RFP
                 </span>
               </li>
               <li className={styles.star}>
                 <Star width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
                 <span>
-                  <strong>Deeper tailoring</strong> — additional intake questions specific
+                  <strong>Deeper tailoring</strong>: additional intake questions specific
                   to your industry and AI use case
                 </span>
               </li>
@@ -165,11 +152,11 @@ export function PricingSection() {
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Expert human review (senior reviewer sign-off)
+                Manual review before delivery
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                48-hour SLA (guaranteed delivery or refund)
+                Delivered within 48 hours
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
@@ -215,11 +202,11 @@ export function PricingSection() {
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Expert human review on each pack
+                Manual review on each pack
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                48-hour SLA per pack
+                Each pack delivered within 48 hours
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />

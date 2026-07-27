@@ -15,32 +15,32 @@ const FAQ_ITEMS: ReadonlyArray<FaqItem> = [
   {
     question: 'Is this legal advice?',
     answer:
-      'No. ReadyPack provides compliance documentation support — not legal advice. Our documents are built from current ICO guidance, the EU AI Act text, and DUAA statutory provisions. They are reviewed by an experienced compliance professional. For legal advice specific to your situation, you should consult a solicitor.',
+      'No. ReadyPack produces compliance documentation, not legal advice. The documents are built from current ICO guidance, the EU AI Act text and DUAA provisions, and every pack is quality-checked before delivery. For advice specific to your situation, you should speak to a solicitor.',
   },
   {
     question: 'What happens to my data after I submit the questionnaire?',
     answer:
-      'Your questionnaire data is used solely to generate your pack. It is processed in the UK, encrypted in transit and at rest, and never used to train any AI model. Your data is deleted within 30 days of pack delivery. We are registered with the ICO as a data controller — [ICO registration: ZA-XXXXXX].',
+      'Your questionnaire data is used solely to generate your pack. It is encrypted in transit and at rest, and is never used to train any AI model. Full detail on retention and your rights is in our privacy notice.',
   },
   {
     question: "What if I don't have technical knowledge about our data systems?",
     answer:
-      'The questionnaire is written in plain English. We ask about how your business uses data and AI — not about server infrastructure or technical architecture. Most customers complete it in under 15 minutes.',
+      'The questionnaire is written in plain English. We ask how your business uses data and AI, not about servers or technical architecture. Set aside 20 to 35 minutes depending on how many AI tools you use, and you can save your progress and come back to it.',
   },
   {
     question: 'Do I need all nine documents?',
     answer:
-      'Most businesses in scope for UK GDPR and the EU AI Act will need the majority. The questionnaire identifies which obligations apply to you specifically. All nine documents are included in every pack — you deploy the ones that are relevant to your current situation.',
+      'Most businesses in scope for UK GDPR and the EU AI Act will need the majority. The questionnaire identifies which obligations apply to you specifically. All nine documents are included in every pack, and you deploy the ones that are relevant to your current situation.',
   },
   {
     question: 'What regulations do the documents cover?',
     answer:
-      'UK GDPR, EU AI Act (Articles 50 and related transparency provisions), and the UK Data (Use and Access) Act 2025, including the Section 103 complaints handling obligation effective 19 June 2026. The Procurement Response Memo is formatted to address all three frameworks in a single enterprise-ready document.',
+      'UK GDPR, the EU AI Act (Article 50 and related transparency provisions), and the UK Data (Use and Access) Act 2025, including the Section 103 complaints handling obligation, which has been in force since 19 June 2026. The Procurement Response Memo pulls all three together into one document you can send to a buyer.',
   },
   {
     question: "What if I'm not satisfied?",
     answer:
-      'Email us within 14 days of delivery and we will issue a full refund — no questions asked.',
+      'Email us within 14 days of delivery and we will issue a full refund. No questions asked.',
   },
   {
     question: 'Can I use these documents for more than one company?',
@@ -53,9 +53,9 @@ const FAQ_ITEMS: ReadonlyArray<FaqItem> = [
       'Yes. The documents address both the UK GDPR framework and the EU AI Act directly. If you operate in both jurisdictions, your pack will address both. DUAA is UK-specific, but the Complaints Procedure Pack is structured to be adaptable for EU equivalents.',
   },
   {
-    question: 'How does the human review work?',
+    question: 'How does the checking work?',
     answer:
-      'After your documents are generated, they are reviewed by an experienced compliance professional before delivery. The reviewer checks for completeness, accuracy against current guidance, and coherence with your specific questionnaire answers. You receive the reviewed version — not the raw AI output.',
+      'Once your documents are generated they go through a quality check before delivery: completeness, consistency with your answers, and accuracy against current guidance. Where your answers flag something higher-risk or uncertain, the pack is held back for a closer manual review rather than sent automatically. You never receive raw, unchecked output.',
   },
   {
     question: 'What is the Procurement Q&A Bank in the Procurement-Ready tier?',

@@ -14,7 +14,10 @@ export function Footer() {
               </span>
             </a>
             <p>Compliance documentation for the businesses that need it most.</p>
-            <div className={styles['footer-ico']}>ICO Registration: ZA-XXXXXX</div>
+            <div className={styles['footer-ico']}>
+              ReadyPack is a trading name of MOFE Ltd, registered in England and Wales
+              (company no. 16633320). Registered with the ICO, reference ZC100233.
+            </div>
           </div>
           <div>
             <h4 className={styles['footer-col-title']}>Navigation</h4>
@@ -48,7 +51,7 @@ export function Footer() {
             website constitutes legal advice. Documents are aligned with current ICO
             guidance and AI Act Article 50. For legal advice, consult a qualified
             solicitor. Complaints are handled under the statutory DUAA Section 103
-            procedure — see <a className={styles['footer-link']} href="/complaints">Complaints Procedure</a>.
+            procedure. See <a className={styles['footer-link']} href="/complaints">Complaints Procedure</a>.
           </div>
         </div>
       </div>
