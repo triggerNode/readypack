@@ -34,12 +34,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data: jobs } = await supabaseAdmin
+  const { data: jobs, error } = await supabaseAdmin
     .from('document_generation_jobs')
     .select('id, order_id, status, started_at')
     .in('status', ['queued', 'running'])
     .order('created_at', { ascending: true })
     .limit(20)
+
+  // This query has a SECOND job: it is what stops the free-tier Supabase project
+  // pausing. Supabase pauses a free project after 7 idle days, and that is what
+  // took prod down on 2026-07-21. Running every minute, this query means the
+  // database never sees 7 idle days — so the keep-alive is free and needs no
+  // alarm, no extra service and nobody remembering to do it.
+  //
+  // It only works if the query actually REACHES the database. Until now the error
+  // was discarded (`const { data: jobs } =`), so an unreachable Supabase was
+  // indistinguishable from "no jobs to do": the route returned 200 either way.
+  // The keep-alive could have been dead for a week with nothing to show for it,
+  // and the generation backstop would have been dead alongside it — a paid order
+  // stuck `queued` with nothing left to rescue it. Same blind spot that caused a
+  // wrong diagnosis during the 2026-07-21 outage (see rp-watch.mjs, commit
+  // 2ce212b). Surface it: a dead database now shows up in the Vercel logs within
+  // the minute instead of as a dead site seven days later.
+  if (error) {
+    console.error(`[cron] Supabase unreachable — keep-alive and generation backstop are both down: ${error.message}`)
+    return NextResponse.json(
+      { ok: false, db: 'unreachable', error: error.message },
+      { status: 500 },
+    )
+  }
 
   const now = Date.now()
   let kicked = 0
