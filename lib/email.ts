@@ -32,7 +32,7 @@ const FONT =
 // The ReadyPack logo mark, as a hosted PNG. Gmail/Outlook strip inline
 // <svg> from emails, so we reference a served image; the "ReadyPack"
 // wordmark beside it carries the brand where images are blocked.
-const LOGO_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || 'https://readypack.vercel.app').replace(/\/+$/, '')
+const LOGO_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || 'https://readypack.co.uk').replace(/\/+$/, '')
 const LOGO_SVG = `<img src="${LOGO_ORIGIN}/brand/readypack-mark.png" width="22" height="26" alt="ReadyPack" style="display:block; border:0; outline:none; text-decoration:none; height:26px; width:auto;" />`
 
 function escapeHtml(value: string): string {
