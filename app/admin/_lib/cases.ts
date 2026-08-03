@@ -8,7 +8,7 @@
 
 export type CaseStatus = 'pending' | 'in_progress' | 'ready' | 'flagged' | 'delivered'
 
-export type PlanCode = 'solo' | 'team' | 'adviser'
+export type PlanCode = 'solo' | 'procurement_ready' | 'adviser'
 
 export type CaseRow = {
   id: string
@@ -87,7 +87,7 @@ export const FILTER_TABS: ReadonlyArray<{ key: FilterTab; label: string }> = [
 
 const PLAN_LABELS: Record<PlanCode, { label: string; price: string }> = {
   solo: { label: 'Solo', price: '£249' },
-  team: { label: 'Procurement Ready', price: '£499' },
+  procurement_ready: { label: 'Procurement Ready', price: '£499' },
   adviser: { label: 'Adviser Pack', price: '£799' },
 }
 

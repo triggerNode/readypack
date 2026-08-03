@@ -64,7 +64,7 @@ export interface InfoRequest {
 export type QaRecommendation = 'approve' | 'request_more_info' | 'escalate' | 'specialist_route'
 export type ReviewerType = 'system' | 'founder' | 'specialist'
 export type ReviewDecision = 'approve' | 'request_more_info' | 'escalate' | 'reject'
-export type PlanSelected = 'solo' | 'team' | 'adviser'
+export type PlanSelected = 'solo' | 'procurement_ready' | 'adviser'
 export type GenerationStatus = 'success' | 'failed' | 'retry'
 export type AuditActionType =
   | 'login' | 'case_view' | 'generate_rerun' | 'approve_delivery'

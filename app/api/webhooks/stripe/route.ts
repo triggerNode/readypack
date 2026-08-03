@@ -23,13 +23,9 @@ const TIER_DISPLAY: Record<TierKey, string> = {
   adviser: 'Adviser Pack',
 }
 
-// DB constraint allows ('solo', 'team', 'adviser') only. Map marketing name → DB value.
-const TIER_DB_VALUE: Record<TierKey, 'solo' | 'procurement_ready' | 'adviser'> = {
-  solo: 'solo',
-  procurement_ready: 'procurement_ready',
-  adviser: 'adviser',
-}
-
+// TierKey doubles as the stored value: orders_plan_selected_check on the live
+// database allows exactly ('solo', 'procurement_ready', 'adviser'), so the
+// checkout metadata goes straight into the column with no translation.
 const FROM_ADDRESS = 'ReadyPack <hello@mail.readypack.co.uk>'
 
 function isTier(value: unknown): value is TierKey {
@@ -215,7 +211,7 @@ async function provisionOrder(args: {
       client_org_id: org.id,
       stripe_session_id: args.stripeSessionId,
       stripe_payment_id: args.stripePaymentId,
-      plan_selected: TIER_DB_VALUE[args.plan],
+      plan_selected: args.plan,
       amount_pence: args.amountPence,
       payment_status: 'paid',
       delivery_status: 'pending',
