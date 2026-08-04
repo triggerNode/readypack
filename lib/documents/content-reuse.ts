@@ -29,7 +29,16 @@ import type { SpecificDocumentContent } from './content-schemas'
 //               for the customer's normal not-yet-compliant remediation state) +
 //               procurement-memo document-index guardrail (kill invented
 //               "Doc 04 = RoPA" / "Doc 06 = Rights Register" cross-references).
-export const GENERATION_LOGIC_VERSION = '2026-07-03.1'
+//   2026-08-04: EVIDENCE RULE in the procurement-memo and privacy-notice prompts,
+//               plus QA check 7 (OVERCLAIMING). Stops the pack asserting a
+//               Transfer Impact Assessment the customer has never done — the
+//               hardcoded example row "TIA on file; reviewed annually" was being
+//               copied verbatim into 13 of 16 memos. This bump is load-bearing,
+//               not bookkeeping: without it the fingerprint is unchanged, so the
+//               reuse engine would clone the OLD pre-fix documents and the
+//               corrected prompts would never run for anyone whose intake matches
+//               an existing pack.
+export const GENERATION_LOGIC_VERSION = '2026-08-04.1'
 
 export interface ContentFingerprint {
   // Environment is part of the fingerprint so test-generated content can never
