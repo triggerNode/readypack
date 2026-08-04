@@ -82,8 +82,8 @@ OUTPUT SCHEMA (respond with ONLY this JSON object):
       ["EU AI Act — Article 50 Transparency", "✓ In place", "AI Use Statement (Doc 01), Customer Disclosure Snippets (Doc 06)"],
       ["EU AI Act — Risk Management", "✓ In place", "AI Risk Register (Doc 03)"],
       ["DUAA Section 103 — Complaints", "✓ In place", "Complaints Procedure Pack (Doc 08)"],
-      ["High-risk AI systems (Annex III)", "⚠ Not in scope", "No Annex III systems deployed; reviewed quarterly"],
-      ["Cross-border transfers — Adequacy", "⚠ Reliance on DPF/SCCs", "TIA on file; reviewed annually"]
+      ["High-risk AI systems (Annex III)", "⚠ Not in scope", "No Annex III systems declared in the intake behind this pack"],
+      ["Cross-border transfers", "⚠ Safeguards documented", "Vendor AI Register (Doc 07); Transfer Impact Assessment assigned as an action in the AI Risk Register (Doc 03)"]
     ]
   },
   "documentation_index_table": {
@@ -115,7 +115,23 @@ OUTPUT SCHEMA (respond with ONLY this JSON object):
 }
 
 RULES:
-- Compliance snapshot rows: keep the status indicators '✓ In place' / '⚠ Not in scope' / '⚠ Reliance on DPF/SCCs' exactly.
+- Compliance snapshot rows: keep the status indicator prefixes '✓' and '⚠' exactly.
+- EVIDENCE RULE — the most important rule in this prompt. This memo is written to
+  be handed to the customer's prospective BUYER, who may ask to see anything it
+  claims. The company described here has only just bought this pack, so:
+  - The only evidence you may cite is a document IN THIS PACK, written as
+    "<Title> (Doc NN)". Assume nothing else exists yet.
+  - NEVER state or imply that an assessment, audit, review, register or
+    certification exists outside this pack. In particular NEVER write that a
+    Transfer Impact Assessment, DPIA or Legitimate Interests Assessment "is on
+    file", "has been completed", or "has concluded" anything, and never offer
+    that copies are "available on request".
+  - NEVER invent a review cadence such as "reviewed annually" or "reviewed
+    quarterly". The review date printed on this pack is the only date you know.
+  - A status of '✓ In place' is permitted only when the thing that makes it true
+    is one of the nine documents in this pack. Anything the customer still has to
+    do is '⚠', described plainly, and pointed at the document in this pack that
+    assigns it as an action.
 - Tailor the executive summary to ${intake.companyName}'s actual context.${qaBankRules}
 - Output ONLY the JSON object. The JSON must be strictly valid (no trailing commas, no comments).`
 }

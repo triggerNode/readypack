@@ -1,6 +1,7 @@
 // lib/documents/prompts/qa-check.ts
 // Prompt template for the Stage 6 QA Layer.
-// Runs against claude-3-5-haiku and outputs ONLY a JSON QaReport.
+// Runs against the model in QA_MODEL (lib/documents/qa-runner.ts — currently
+// claude-haiku-4-5-20251001) and outputs ONLY a JSON QaReport.
 
 import {
   companyProfileBlock,
@@ -163,7 +164,7 @@ EU CUSTOMERS: ${intake.hasEuCustomers ? 'Yes' : 'No'}${intake.euRevenuePercentag
 GENERATED DOCUMENT SLICE (token-lean, vital tables/sections only):
 ${docsBlock}
 
-YOU MUST PERFORM THESE 6 CORE CHECKS:
+YOU MUST PERFORM THESE 7 CORE CHECKS:
 
 1. INTAKE COMPLETENESS — Does the intake have enough information to defensibly generate the pack? Flag any structural gaps (no AI tools declared but pack references AI use; no vendors declared but cross-border transfers asserted; no contact email; etc.).
 
@@ -182,10 +183,31 @@ YOU MUST PERFORM THESE 6 CORE CHECKS:
 
 6. RED-FLAG ESCALATION — Identify anything that should NOT ship without human review: undeclared high-risk or unacceptable-risk AI systems, vendors with 'not_in_place' DPA status processing personal data, unresolved 'critical' risk flags, regulated-sector indicators (legal, healthcare, financial advice) that suggest specialist routing is required, or any content that appears legally unsafe.
 
+7. OVERCLAIMING — does any document assert, on the customer's behalf, that
+   something has ALREADY been done which the intake does not evidence? The customer
+   has only just bought this pack, and these documents are handed to their buyers,
+   their own customers and potentially a regulator, who may ask to see whatever is
+   claimed. Raise a red_flag with category 'other' and severity 'high' for any
+   statement that:
+   - says an assessment has been carried out or "has concluded" something — a
+     Transfer Impact Assessment, DPIA, LIA, penetration test or audit — unless that
+     assessment IS one of the documents in this pack;
+   - offers that copies of documentation are "available on request" for anything
+     outside this pack;
+   - cites evidence that is not one of the nine documents in this pack;
+   - asserts a review cadence ("reviewed annually", "reviewed quarterly", "audited
+     yearly") that nothing in the intake supports;
+   - claims a certification, accreditation or registration the intake did not
+     declare.
+   This is the mirror image of the CALIBRATION below. An outstanding action stated
+   as outstanding is expected and fine. The same action stated as completed is a
+   defect, and a more serious one than an omission, because the customer cannot
+   tell it is false and will repeat it in good faith.
+
 CALIBRATION — WHAT IS *NOT* A RED FLAG (this is critical to get right):
 ReadyPack exists to take a business that is NOT YET compliant and give it the documents and action plan to BECOME compliant. So a customer having OPEN, FORWARD-LOOKING remediation actions is the EXPECTED, NORMAL baseline — it is the entire reason they bought the pack. Do NOT raise red_flags, and do NOT escalate, merely because the customer has not yet completed an action the pack itself prescribes. The following are EXPECTED and belong in the AI Risk Register as action items — they are NOT red_flags and NOT grounds for escalation:
 - Transparency/disclosure notices "not yet live", not yet published, or pending deployment (the pack provides them).
-- Transfer Impact Assessments (TIAs) or Legitimate Interests Assessments (LIAs) "in progress", "to be completed", "being finalised", or "available on request" (the pack provides the templates).
+- Transfer Impact Assessments (TIAs) or Legitimate Interests Assessments (LIAs) described as "in progress", "to be completed", "being finalised", or otherwise still outstanding (the pack provides the templates). Note the limit of this allowance: it covers work the documents describe as STILL TO DO. A document asserting that such an assessment has ALREADY been carried out is the opposite case — see check 7.
 - A privacy notice, ROPA, or policy newly created by this pack and not yet published to customers.
 - Inventories, logs, or registers the pack recommends building that do not yet exist.
 - Certifications (ISO 27001, SOC 2, ISO 42001) described as "on the roadmap", "targeted", or aspirational.
@@ -194,6 +216,7 @@ Surface these inside the documents as remediation actions; NEVER treat them as a
 
 ONLY escalate (or specialist_route) for a GENUINE problem that makes the pack unsafe or defective to ship, i.e. one of:
 - A real PACK DEFECT: two documents materially contradict each other; a document is missing; a risk classification is plainly wrong; a cited document number/title does not correspond to a real document in the index.
+- An OVERCLAIM as defined in check 7 — a document telling the customer's buyer that something was done which the intake does not evidence.
 - An undeclared HIGH-risk or UNACCEPTABLE-risk AI system (EU AI Act Annex III / Article 5).
 - A vendor with DPA status 'not in place' that is actually processing personal data (a real safeguard gap — not a paperwork-in-progress note).
 - An unresolved 'critical' intake risk flag.

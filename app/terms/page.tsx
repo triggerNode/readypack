@@ -116,9 +116,9 @@ export default function TermsPage() {
               (Use and Access) Act 2025.
             </p>
             <p>
-              The documents are drafted by an AI model and then quality-checked before
-              delivery: completeness, consistency with your answers, and accuracy against
-              current guidance. Where your answers flag something higher-risk or uncertain,
+              The documents are drafted by an AI model and then quality-checked by a
+              second AI model before delivery: completeness, consistency with your
+              answers, and accuracy against current guidance. Where your answers flag something higher-risk or uncertain,
               the pack is held back for a closer manual review rather than sent
               automatically. Exactly what is sent to the AI provider, and what is held
               back, is set out in <a href="/privacy#ai">section 5 of our Privacy Notice</a>.

@@ -65,7 +65,8 @@ export default function PrivacyPage() {
               Your documents are drafted by an AI model. Before your answers go to it, we
               swap your company name, your name, your role and your email for
               placeholders. Everything else you typed <strong>is</strong> sent, including
-              the free text.
+              the free text. A second AI model then checks the finished draft, and by that
+              point your real name and details are back in it.
             </li>
             <li>
               The website runs in London and the database is in Ireland. The AI provider
@@ -77,8 +78,8 @@ export default function PrivacyPage() {
               advertising, no tracking. That is why you never saw a cookie banner.
             </li>
             <li>
-              A real person at ReadyPack reads your answers as part of the quality check
-              before your pack is sent.
+              Every pack is checked by an AI model and then released by a real person at
+              ReadyPack, who may read your answers and your draft documents.
             </li>
             <li>
               You can ask for a copy of your data, or ask us to delete it, by emailing{' '}
@@ -341,9 +342,10 @@ export default function PrivacyPage() {
 
           <LegalSection id="ai" num="05" title="What goes to the AI model">
             <p>
-              Your documents are drafted by an AI model provided by{' '}
-              <strong>Anthropic PBC</strong>. This is the section people actually want to
-              read, so we are going to be exact rather than reassuring.
+              Your documents are drafted and then checked by AI models provided by{' '}
+              <strong>Anthropic PBC</strong>. There are two separate AI steps, they are not
+              given the same thing, and this is the section people actually want to read
+              &mdash; so we are going to be exact rather than reassuring.
             </p>
 
             <Callout>
@@ -355,15 +357,16 @@ export default function PrivacyPage() {
               </p>
             </Callout>
 
-            <h3 className={styles.h3}>Exactly what is swapped out</h3>
+            <h3 className={styles.h3}>Step one: drafting. What is swapped out</h3>
             <p>
-              Seven fields are replaced with placeholders before the request leaves our
-              servers, and the real values are put back into the finished document
-              afterwards: your company name, your trading name, your contact name, your
-              contact role, your contact email, and the two dates printed on the pack.
+              Seven fields are replaced with placeholders before the drafting request
+              leaves our servers, and the real values are put back into the finished
+              document afterwards: your company name, your trading name, your contact
+              name, your contact role, your contact email, and the two dates printed on
+              the pack.
             </p>
 
-            <h3 className={styles.h3}>Exactly what is sent</h3>
+            <h3 className={styles.h3}>Step one: drafting. What is sent</h3>
             <p>
               Everything else in your questionnaire. Specifically: your sector and
               headcount, the names of every AI tool you listed, the names of your vendors,
@@ -373,9 +376,29 @@ export default function PrivacyPage() {
               &mdash; the free text you wrote about the tender or client you are chasing.
             </p>
             <p>
-              We are spelling this out because the swap covers who you are, not what you
-              said. If you would not want a sentence processed by a third-party AI
-              provider, do not type it into the questionnaire.
+              We are spelling this out because at the drafting step the swap covers who
+              you are, not what you said. If you would not want a sentence processed by a
+              third-party AI provider, do not type it into the questionnaire.
+            </p>
+
+            <h3 className={styles.h3}>Step two: the check</h3>
+            <p>
+              Once a draft comes back, a second AI model from the same provider reads it
+              and scores it for completeness, risk, and contradictions between your
+              documents. That score is what decides whether a pack can be released or has
+              to be held back for a closer look.
+            </p>
+            <p>
+              <strong>
+                This second model does see your real company name, contact name, role and
+                email.
+              </strong>{' '}
+              Not because we send your answers a second time &mdash; that copy is
+              swapped for placeholders too &mdash; but because what it is given is the
+              finished draft, and by that point the real values have been put back in. It
+              is the same provider, under the same contract, with the same no-training and
+              retention position set out below. We are telling you rather than letting the
+              paragraph above imply your name never reaches them at all.
             </p>
 
             <h3 className={styles.h3}>What Anthropic does with it</h3>
@@ -394,11 +417,12 @@ export default function PrivacyPage() {
               <li>Anthropic stores data in the United States.</li>
             </ul>
 
-            <h3 className={styles.h3}>The human step</h3>
+            <h3 className={styles.h3}>The person who releases it</h3>
             <p>
-              Once a draft comes back it goes through a quality check, and where your
-              answers flag something higher risk or uncertain, the pack is held back for a
-              closer manual review instead of being sent automatically. That means{' '}
+              The check above is automated. A person is the next step, not the same one:
+              where your answers flag something higher risk or uncertain the pack is held
+              for a closer manual review, and no pack reaches you until someone at
+              ReadyPack releases it. That means{' '}
               <strong>
                 a person at ReadyPack may read your answers and your draft documents
               </strong>

@@ -36,7 +36,12 @@ const EMPLOYEE_OPTIONS = [
 ]
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024
-const ACCEPTED_LOGO_TYPES = ['image/svg+xml', 'image/png', 'image/jpeg']
+// PNG and JPEG only, deliberately. @react-pdf/renderer v4.5.1's <Image> renders
+// JPG and PNG and nothing else, so an SVG upload is accepted here and then fails
+// silently in the PDF — the customer's cover logo and the running header on every
+// page both break, with no error anywhere. Found by uploading our own SVG on
+// 2026-08-04. Do not re-add image/svg+xml without converting to PNG on upload.
+const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg']
 
 export function Section01Business({ answers, isSaving, onChange, onContinue }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -64,7 +69,7 @@ export function Section01Business({ answers, isSaving, onChange, onContinue }: P
   async function handleFile(file: File) {
     setUploadError(null)
     if (!ACCEPTED_LOGO_TYPES.includes(file.type)) {
-      setUploadError('Logo must be SVG, PNG or JPEG')
+      setUploadError('Logo must be PNG or JPEG')
       return
     }
     if (file.size > MAX_LOGO_BYTES) {
@@ -238,13 +243,13 @@ export function Section01Business({ answers, isSaving, onChange, onContinue }: P
               <span className="qz-upload-primary">
                 {uploading ? 'Uploading…' : isDragging ? 'Drop to upload' : 'Click to upload or drag here'}
               </span>
-              <span className="qz-upload-secondary">SVG, PNG or JPEG · max 2MB</span>
+              <span className="qz-upload-secondary">PNG or JPEG · max 2MB</span>
             </button>
           )}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg"
+            accept=".png,.jpg,.jpeg,image/png,image/jpeg"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0]

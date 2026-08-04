@@ -22,7 +22,15 @@ const ICON_STROKE = 1.5
  * never actually disclosed that an AI drafts the documents. Same class of claim
  * as the "zero-egress" line removed on 2026-07-27, and the same rule applies: on
  * a compliance product, what we say about ourselves has to match what the code
- * does. The wording below is unchanged from that fix — only its container moved.
+ * does.
+ *
+ * Revised 2026-08-04 for the same reason. The line used to read "drafted by an
+ * AI model and checked by a person before delivery", which made the quality
+ * check sound human. It is not: there are TWO model calls. Sonnet drafts, and
+ * Haiku scores the finished draft for completeness, risk and cross-document
+ * consistency (`lib/documents/qa-runner.ts`). A person then releases the pack —
+ * `app/api/admin/cases/[id]/send-delivery/route.ts` is admin-gated — which is a
+ * separate step, and the one this line now describes.
  *
  * The bar is dismissible, so it is worth noting it is not the only place the
  * disclosure lives. Checked at source: Terms § 02 "What ReadyPack is" says the
@@ -58,8 +66,8 @@ function TickerMessage({ isDuplicate = false }: { isDuplicate?: boolean }) {
         <Sparkles width={13} height={13} strokeWidth={ICON_STROKE} />
       </span>
       <span>
-        Your documents are <strong>drafted by an AI model</strong> and checked by a
-        person before delivery.
+        Your documents are <strong>drafted and checked by AI models</strong>, then
+        released by a person.
       </span>
       <span className={styles['ticker-tail']} aria-hidden="true">·</span>
     </div>

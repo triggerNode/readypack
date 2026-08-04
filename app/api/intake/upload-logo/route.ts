@@ -7,12 +7,16 @@ export const dynamic = 'force-dynamic'
 
 const BUCKET = 'readypack-logos'
 const MAX_BYTES = 2 * 1024 * 1024
-const ACCEPTED = new Set(['image/svg+xml', 'image/png', 'image/jpeg'])
+// PNG and JPEG only. SVG was accepted until 2026-08-04 and had to go, because
+// @react-pdf/renderer v4.5.1's <Image> renders JPG and PNG and nothing else: an
+// SVG logo was stored happily here and then broke the customer's cover page and
+// the running header on every page, silently. Dropping it also retires the
+// best-effort SVG script-stripping below, and with it a stored-XSS surface.
+const ACCEPTED = new Set(['image/png', 'image/jpeg'])
 
 // Verify the actual file CONTENT, not just the client-declared Content-Type
-// (which is trivially forged). PNG/JPEG checked by magic bytes; SVG rejected if
-// it carries scripts or event handlers — those would be stored XSS when the
-// public logo URL is opened directly. Returns an error message, or null if OK.
+// (which is trivially forged). Both accepted formats are checked by magic bytes.
+// Returns an error message, or null if OK.
 function validateImageContent(bytes: Uint8Array, declaredType: string): string | null {
   if (declaredType === 'image/png') {
     const ok =
@@ -23,23 +27,6 @@ function validateImageContent(bytes: Uint8Array, declaredType: string): string |
   if (declaredType === 'image/jpeg') {
     const ok = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
     return ok ? null : 'File is not a valid JPEG.'
-  }
-  if (declaredType === 'image/svg+xml') {
-    const text = new TextDecoder().decode(bytes).toLowerCase()
-    if (!text.includes('<svg')) return 'File is not a valid SVG.'
-    // SVG can carry active content -> stored XSS if the logo URL is opened
-    // directly. A logo never needs scripts, event handlers, or embedded
-    // executable elements, so reject the practical execution vectors. (Best
-    // effort: a full sanitizer / forced attachment-disposition is the proper
-    // long-term fix — tracked as fast-follow.)
-    const dangerous = [
-      '<script', 'javascript:', '<foreignobject',
-      '<iframe', '<embed', '<object', '<animate', '<set',
-    ]
-    if (/\son\w+\s*=/.test(text) || dangerous.some((p) => text.includes(p))) {
-      return 'SVG must not contain scripts, event handlers, or embedded objects.'
-    }
-    return null
   }
   return 'Unsupported file type.'
 }
@@ -65,7 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'file required' }, { status: 400 })
   }
   if (!ACCEPTED.has(file.type)) {
-    return NextResponse.json({ error: 'File must be SVG, PNG, or JPEG' }, { status: 400 })
+    return NextResponse.json({ error: 'File must be PNG or JPEG' }, { status: 400 })
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: 'File exceeds 2MB' }, { status: 400 })
@@ -86,7 +73,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
-  const safeExt = ['svg', 'png', 'jpg', 'jpeg'].includes(ext) ? ext : 'png'
+  const safeExt = ['png', 'jpg', 'jpeg'].includes(ext) ? ext : 'png'
   const path = `${submission.id}/logo-${Date.now()}.${safeExt}`
 
   const arrayBuffer = await file.arrayBuffer()

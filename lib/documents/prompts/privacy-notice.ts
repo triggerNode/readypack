@@ -61,12 +61,21 @@ OUTPUT SCHEMA (respond with ONLY this JSON object):
   },
   "no_automated_decisions_text": "A paragraph stating the company does not make solely-automated decisions producing legal/significant effects on individuals, with the human review safeguard.",
   "your_rights_text": "A paragraph listing the UK GDPR rights (access, rectify, erase, restrict, object).",
-  "international_transfers_text": "A paragraph specific to the vendors above describing the transfer mechanisms (DPF, SCCs) and TIA practice.",
+  "international_transfers_text": "A paragraph specific to the vendors above naming the transfer mechanism each one relies on (UK IDTA / Addendum, EU SCCs, or an adequacy decision). See the EVIDENCE RULE below — do NOT claim a Transfer Impact Assessment has been carried out.",
   "complaints_text": "A short paragraph pointing to the ICO and to the Complaints Procedure (Document 08)."
 }
 
 RULES:
 - The processing_activities_table must reflect the actual AI tools the company uses.
 - Lawful basis options: legitimate interests (Art. 6(1)(f)), consent (Art. 6(1)(a)), contract (Art. 6(1)(b)).
+- EVIDENCE RULE: this notice is published to the company's own customers, and the
+  company has only just bought this pack. Never assert that an assessment the
+  company has not done has been done. Specifically, never write that a Transfer
+  Impact Assessment "has been conducted", "has concluded" anything, or that copies
+  of transfer documentation are "available on request". Name the transfer
+  mechanism, which is a fact about the vendor's contract, and if a Transfer Impact
+  Assessment is appropriate describe it as outstanding — e.g. "a Transfer Impact
+  Assessment for this transfer is recorded as an outstanding action in our AI Risk
+  Register". Same for any audit, certification or register not in this pack.
 - Output ONLY the JSON object.`
 }
