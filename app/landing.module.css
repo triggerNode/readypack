@@ -89,60 +89,15 @@
   letter-spacing: -0.01em;
 }
 
-/* ---------- Announcement bar ---------- */
-.ann {
+/* ---------- Top ticker (announcement + Article 50 disclosure) ----------
+   One bar, scrolling like a news ticker. The track holds two identical copies
+   of the message, so translating it by exactly -50% lands on the start of the
+   second copy and the loop is seamless. Only `transform` animates, so this
+   stays on the compositor. */
+.ticker {
   position: relative;
-  background:
-    radial-gradient(ellipse 70% 140% at 50% 0%, rgba(22, 163, 74, 0.10), transparent 72%),
-    linear-gradient(90deg, #090d13 0%, #10171f 50%, #090d13 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-  text-align: center;
-  padding: 11px 16px;
-}
-.ann-inner {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  justify-content: center;
-}
-.ann-dot {
-  display: inline-block;
-  width: 7px; height: 7px;
-  border-radius: 99px;
-  background: var(--accent-primary);
-  box-shadow: 0 0 8px rgba(22, 163, 74, 0.7);
-  flex-shrink: 0;
-}
-.ann-strong {
-  color: var(--text-primary);
-  font-weight: 600;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0;
-  background: rgba(22, 163, 74, 0.10);
-  border: 1px solid rgba(22, 163, 74, 0.22);
-  padding: 1px 7px;
-  border-radius: 5px;
-  white-space: nowrap;
-}
-.ann-sep { color: var(--text-muted); }
-.ann a {
-  color: var(--text-accent);
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  transition: color var(--dur-base);
-}
-.ann a:hover { color: #6ee7a0; }
-
-/* ---------- Article 50 disclosure ---------- */
-.disclosure {
-  position: relative;
   background: linear-gradient(
     90deg,
     rgba(22, 163, 74, 0.05),
@@ -150,8 +105,11 @@
     rgba(22, 163, 74, 0.05)
   );
   border-bottom: 1px solid rgba(22, 163, 74, 0.18);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
-.disclosure::after {
+.ticker::after {
   content: '';
   position: absolute;
   inset: 0 0 auto;
@@ -163,19 +121,62 @@
     transparent
   );
 }
-.disclosure-inner {
+.ticker-viewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 9px 0;
+  /* Fade the copy in and out at the edges rather than slicing it off. */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+}
+.ticker-track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: ticker-scroll 26s linear infinite;
+}
+/* Let a reader stop the copy to finish reading it. */
+.ticker:hover .ticker-track,
+.ticker:focus-within .ticker-track { animation-play-state: paused; }
+
+@keyframes ticker-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.ticker-message {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 12px;
-  padding: 9px 16px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  text-align: center;
-  flex-wrap: wrap;
+  padding-right: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
-.disclosure-badge {
+.ticker-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 99px;
+  background: var(--accent-primary);
+  box-shadow: 0 0 8px rgba(22, 163, 74, 0.7);
+  flex-shrink: 0;
+}
+.ticker-pill {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0;
+  background: rgba(22, 163, 74, 0.10);
+  border: 1px solid rgba(22, 163, 74, 0.22);
+  padding: 1px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.ticker-sep,
+.ticker-tail { color: var(--text-muted); }
+.ticker-tail { padding-left: 32px; }
+.ticker-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -191,14 +192,57 @@
   border-radius: 99px;
   flex-shrink: 0;
 }
-.disclosure-icon {
+.ticker-icon {
   color: var(--accent-primary);
   display: inline-flex;
   flex-shrink: 0;
 }
-.disclosure strong { color: var(--text-primary); font-weight: 600; }
-@media (max-width: 600px) {
-  .disclosure-badge { display: none; }
+.ticker strong { color: var(--text-primary); font-weight: 600; }
+
+.ticker-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  margin-right: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-base), background var(--dur-base), border-color var(--dur-base);
+}
+.ticker-close:hover {
+  color: var(--text-primary);
+  background: rgba(22, 163, 74, 0.14);
+  border-color: rgba(22, 163, 74, 0.30);
+}
+.ticker-close:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* No motion: show one static copy, centred and allowed to wrap. */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+    width: 100%;
+    justify-content: center;
+  }
+  .ticker-message + .ticker-message { display: none; }
+  .ticker-message {
+    flex-wrap: wrap;
+    justify-content: center;
+    white-space: normal;
+    padding-right: 0;
+  }
+  .ticker-tail { display: none; }
+  .ticker-viewport {
+    padding: 9px 16px;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }
 
 /* ---------- Nav ---------- */

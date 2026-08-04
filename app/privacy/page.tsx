@@ -1,7 +1,6 @@
 import { Nav } from '@/components/layout/Nav'
 import { Footer } from '@/components/layout/Footer'
-import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
-import { AiDisclosure } from '@/components/layout/AiDisclosure'
+import { TopTicker } from '@/components/layout/TopTicker'
 import {
   LegalDoc,
   LegalSection,
@@ -43,8 +42,7 @@ const TOC: readonly TocItem[] = [
 export default function PrivacyPage() {
   return (
     <>
-      <AnnouncementBar />
-      <AiDisclosure />
+      <TopTicker />
       <Nav />
 
       <main>

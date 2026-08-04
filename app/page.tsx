@@ -28,8 +28,7 @@ import {
 import styles from './landing.module.css'
 import { Nav } from '@/components/layout/Nav'
 import { Footer } from '@/components/layout/Footer'
-import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
-import { AiDisclosure } from '@/components/layout/AiDisclosure'
+import { TopTicker } from '@/components/layout/TopTicker'
 import { HeroSection } from '@/components/landing/HeroSection'
 import { PricingSection } from '@/components/landing/PricingSection'
 import { FaqSection } from '@/components/landing/FaqSection'
@@ -123,11 +122,8 @@ const DOCUMENTS = [
 export default function HomePage() {
   return (
     <>
-      {/* 1. Announcement bar */}
-      <AnnouncementBar />
-
-      {/* 1b. Article 50 disclosure */}
-      <AiDisclosure />
+      {/* 1. Ticker: announcement + Article 50 disclosure */}
+      <TopTicker />
 
       {/* 2. Nav */}
       <Nav />

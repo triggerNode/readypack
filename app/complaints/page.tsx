@@ -16,8 +16,7 @@ import Link from 'next/link'
 import styles from '@/app/landing.module.css'
 import { Nav } from '@/components/layout/Nav'
 import { Footer } from '@/components/layout/Footer'
-import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
-import { AiDisclosure } from '@/components/layout/AiDisclosure'
+import { TopTicker } from '@/components/layout/TopTicker'
 
 const ICON_STROKE = 1.5
 
@@ -106,8 +105,7 @@ export default function ComplaintsPage() {
 
   return (
     <>
-      <AnnouncementBar />
-      <AiDisclosure />
+      <TopTicker />
       <Nav />
 
       <main className={styles['cmp-page']}>
