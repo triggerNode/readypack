@@ -530,14 +530,8 @@ export default function HomePage() {
               <h2>Our guarantee</h2>
               <div className={styles['guarantee-body']}>
                 <p>
-                  We don&apos;t have a wall of testimonials to show you, and we
-                  won&apos;t manufacture them. We&apos;re a new product and we&apos;re
-                  honest about that.
-                </p>
-                <p>
-                  What we can offer is this: if your pack doesn&apos;t meet the standard
-                  you expected within 14 days of delivery, we will refund you in full. No
-                  questions. No forms. Email us and it&apos;s done.
+                  If your pack isn&apos;t what you expected, email us within 14 days of
+                  delivery and we refund you in full. No questions. No forms.
                 </p>
                 <p>We stand behind every pack that leaves us.</p>
               </div>
