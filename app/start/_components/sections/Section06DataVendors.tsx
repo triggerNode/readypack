@@ -65,7 +65,18 @@ const TRAINING_REUSE = [
   { value: 'Opt-out available', label: 'Opt-out available' },
 ]
 
-const CERTS = ['ISO 27001', 'SOC 2 Type II', 'Cyber Essentials', 'UK DSPT', 'None / Don\'t know']
+// ISO 42001 leads because this list describes AI vendors, and it is the only
+// standard here that is about managing AI specifically. Omitting it meant a
+// customer could not record the single most relevant certification an AI vendor
+// can hold — found by filling this questionnaire in for ReadyPack itself.
+const CERTS = [
+  'ISO 42001',
+  'ISO 27001',
+  'SOC 2 Type II',
+  'Cyber Essentials',
+  'UK DSPT',
+  "None / Don't know",
+]
 
 export function Section06DataVendors({
   answers,
@@ -273,7 +284,18 @@ export function Section06DataVendors({
                       </div>
                     </div>
                     <div className="qz-vendor-full">
-                      <label className="qz-field-label">Certifications held</label>
+                      <label className="qz-field-label">
+                        Certifications held
+                        <HelpPopover title="Which certification means what?">
+                          <strong>ISO 42001</strong> is the newest one and the only one
+                          about managing AI itself — how a company builds, tests and
+                          oversees its AI. <strong>ISO 27001</strong> and{' '}
+                          <strong>SOC 2 Type II</strong> are about information security
+                          generally. Most AI vendors publish these on a &quot;trust&quot; or
+                          &quot;security&quot; page on their website. If you cannot find one,
+                          leave it blank rather than guessing.
+                        </HelpPopover>
+                      </label>
                       <div style={{ marginTop: 8 }}>
                         <PillMultiSelect
                           options={CERTS}

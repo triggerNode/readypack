@@ -38,8 +38,12 @@ const POLICY = [
   { value: 'In progress', label: 'In progress' },
 ]
 
+// ISO 42001 (AI management systems) added alongside the vendor list in Section 6.
+// Rare for an SME to hold today, but it is the one certification that speaks
+// directly to what this pack documents, and a customer who has it should be able
+// to say so.
 const CERTS = [
-  'ISO 27001', 'Cyber Essentials', 'Cyber Essentials Plus', 'SOC 2', 'IASME', 'NHS DSPT', 'None of these',
+  'ISO 42001', 'ISO 27001', 'Cyber Essentials', 'Cyber Essentials Plus', 'SOC 2', 'IASME', 'NHS DSPT', 'None of these',
 ]
 
 export function Section07ExistingDocs({ answers, isSaving, onChange, onBack, onContinue }: Props) {
