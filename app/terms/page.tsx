@@ -55,8 +55,8 @@ export default function TermsPage() {
         >
           <ShortVersion note="This summary is a signpost. The numbered clauses below are the agreement.">
             <li>
-              You pay once. £249, £499 or £799 depending on the pack. No subscription, no
-              VAT on top.
+              You pay once. £249 or £499 depending on the pack, or a price we agree with
+              you if you need packs for several clients. No subscription, no VAT on top.
             </li>
             <li>
               We deliver within 48 hours of you <strong>submitting the questionnaire</strong>
@@ -181,16 +181,15 @@ export default function TermsPage() {
                     tailored to a specific tender or client you tell us about.
                   </td>
                 </tr>
-                <tr>
-                  <td>Adviser</td>
-                  <td>£799</td>
-                  <td>
-                    Three individually tailored packs, for advisers producing documentation
-                    for their own clients.
-                  </td>
-                </tr>
               </tbody>
             </TableWrap>
+            <p>
+              If you are an adviser, agency or consultancy producing documentation for
+              several of your own clients, we handle that by agreement rather than as a
+              fixed package &mdash; email{' '}
+              <a href="mailto:hello@readypack.co.uk">hello@readypack.co.uk</a> and we will
+              agree the number of packs and the price in writing before you pay.
+            </p>
             <p>
               Prices are in pounds sterling and are the total amount you pay.{' '}
               <strong>We are not currently registered for VAT, so no VAT is added.</strong>{' '}
@@ -285,8 +284,9 @@ export default function TermsPage() {
             </p>
             <p>
               We refund to the original payment method. Stripe normally takes five to ten
-              working days to return it to your account. On the Adviser Pack, a refund
-              covers the whole order rather than a single pack within it.
+              working days to return it to your account. Where an agreed arrangement covers
+              packs for several of your clients, a refund covers the whole order rather than
+              a single pack within it.
             </p>
             <p>
               This is a promise we choose to make, not a statutory right you would otherwise
@@ -311,8 +311,9 @@ export default function TermsPage() {
               ReadyPack is required and there is nothing further to pay, ever.
             </p>
             <p>
-              On the Adviser Pack, that right extends to producing and handing over the
-              documents to your own clients as part of your services to them.
+              Where we have agreed in writing that you are producing packs for your own
+              clients, that right extends to producing and handing over the documents to
+              those clients as part of your services to them.
             </p>
 
             <h3 className={styles.h3}>Your answers stay yours</h3>
@@ -361,8 +362,8 @@ export default function TermsPage() {
             <ul>
               <li>
                 resell, sublicense or redistribute ReadyPack itself, or provide access to
-                the questionnaire to anyone outside your organisation (the Adviser Pack
-                covers producing packs for your own clients, which is different);
+                the questionnaire to anyone outside your organisation (an agreed
+                arrangement covering packs for your own clients is different);
               </li>
               <li>
                 use the service to produce documentation for a business you are not

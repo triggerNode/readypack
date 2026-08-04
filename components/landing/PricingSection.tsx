@@ -179,57 +179,49 @@ export function PricingSection() {
             </div>
           </div>
 
-          {/* Tier 3: Adviser Pack */}
+          {/* Tier 3: advisers and multi-client work, arranged by email rather
+              than sold as a fixed package. Every promise below is fulfilled by
+              running the normal pack flow once per client, so it stays true at
+              the volumes one person can actually deliver. */}
           <div className={styles['price-card']}>
-            <div className={styles['price-tier']}>Adviser Pack</div>
+            <div className={styles['price-tier']}>Several clients</div>
             <div className={styles['price-amount']}>
-              <span className={styles.num}>£799</span>
-              <span className={styles.cad}>per pack · up to 3 clients</span>
+              <span className={styles.num}>Let&apos;s talk</span>
             </div>
             <p className={styles['price-tagline']}>
-              For consultancies, agencies, and advisors delivering compliance
-              documentation to their own clients.
+              For consultancies, agencies, and advisors producing compliance
+              documentation for their own clients.
             </p>
             <div className={styles['price-divider']} />
             <ul className={styles['price-features']}>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Three individually tailored compliance packs (one per client)
+                A separate tailored pack for each client
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Each pack tailored to that client&apos;s specific business
+                Each one built from that client&apos;s own answers
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Manual review on each pack
+                The same nine documents, delivered within 48 hours per pack
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Each pack delivered within 48 hours
+                Manual review and one revision round on every pack
               </li>
               <li>
                 <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                White-label delivery available
-              </li>
-              <li>
-                <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                Priority support channel
-              </li>
-              <li>
-                <Check width={16} height={16} strokeWidth={ICON_STROKE} className={styles.ico} />
-                One revision round per pack
+                Priced on how many clients you need covering
               </li>
             </ul>
             <div className={styles['price-cta']}>
-              <button
-                type="button"
-                onClick={() => handleCheckout('adviser')}
-                disabled={loadingTier !== null}
+              <a
+                href="mailto:hello@readypack.co.uk?subject=Packs%20for%20several%20clients"
                 className={`${styles.btn} ${styles['btn-secondary']}`}
               >
-                {labelFor('adviser', 'Get Adviser Pack')}
-              </button>
+                Email us about your clients
+              </a>
             </div>
           </div>
         </div>

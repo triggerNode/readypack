@@ -45,7 +45,7 @@ const FAQ_ITEMS: ReadonlyArray<FaqItem> = [
   {
     question: 'Can I use these documents for more than one company?',
     answer:
-      'Each pack is tailored to a specific business. If you need documentation for multiple companies or clients, the Adviser Pack tier includes three individually tailored packs. For larger volumes, contact us directly.',
+      'Each pack is tailored to a specific business, so one pack covers one company. If you need documentation for several companies or clients — for example if you are an adviser or agency working on their behalf — email hello@readypack.co.uk and we will work out an arrangement that fits how many you need.',
   },
   {
     question: 'Do you cover EU businesses as well as UK?',

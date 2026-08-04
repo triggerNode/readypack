@@ -369,8 +369,8 @@ export default function PrivacyPage() {
               headcount, the names of every AI tool you listed, the names of your vendors,
               what you told us each tool is used for, the categories of data involved, the
               risk flags our checks raised and the explanations behind them, and &mdash;
-              on the Procurement-Ready and Adviser tiers &mdash; the free text you wrote
-              about the tender or client you are chasing.
+              on the Procurement-Ready tier and on any agreed multi-client arrangement
+              &mdash; the free text you wrote about the tender or client you are chasing.
             </p>
             <p>
               We are spelling this out because the swap covers who you are, not what you

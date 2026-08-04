@@ -39,12 +39,18 @@ test.describe('Layer A — public pages load', () => {
 })
 
 test.describe('Layer A — landing funnel', () => {
-  test('all three tier prices are shown', async ({ page }) => {
+  test('both purchasable prices are shown, and multi-client work points at email', async ({
+    page,
+  }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     const body = page.locator('body')
     await expect(body).toContainText('£249')
     await expect(body).toContainText('£499')
-    await expect(body).toContainText('£799')
+    // The £799 Adviser tier advertised three packs the system has no way to
+    // build (only the webhook creates an order+intake, one per payment), so it
+    // is no longer sold as a fixed package. See DECISIONS-LOG 2026-08-04.
+    await expect(body).not.toContainText('£799')
+    await expect(body).toContainText('Email us about your clients')
   })
 
   test('a pricing CTA creates a real Stripe test-mode checkout session', async ({ page }) => {
