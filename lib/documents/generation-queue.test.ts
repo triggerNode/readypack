@@ -86,23 +86,27 @@ describe('kickWorker — a kick that does not land must be loud', () => {
 })
 
 describe('kickWorker — where the kick is sent', () => {
-  test('uses the explicit origin, so the cron cannot be pointed at localhost by a bad env var', async () => {
+  // The stable public URL must win. Vercel Cron invokes the DEPLOYMENT url
+  // (readypack-<hash>.vercel.app), which deployment protection answers with 401
+  // while the production alias is public — so preferring the caller's own origin
+  // turned a working kick into a refused one on 2026-08-05.
+  test('prefers NEXT_PUBLIC_APP_URL over the caller origin, which may be a protected deployment url', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://wrong.example.com')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://readypack.co.uk')
 
-    kickWorker('order-abc', 'https://readypack.co.uk')
+    kickWorker('order-abc', 'https://readypack-abc123-team.vercel.app')
     await flush()
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://readypack.co.uk/api/generate')
   })
 
-  test('falls back to NEXT_PUBLIC_APP_URL when no origin is given', async () => {
+  test('uses the fallback origin only when NEXT_PUBLIC_APP_URL is unset', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://readypack.co.uk')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
 
-    kickWorker('order-abc')
+    kickWorker('order-abc', 'https://readypack.co.uk')
     await flush()
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://readypack.co.uk/api/generate')

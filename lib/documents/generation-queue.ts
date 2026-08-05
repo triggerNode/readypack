@@ -92,17 +92,19 @@ export async function enqueueGeneration(orderId: string): Promise<EnqueueResult>
  * kick has been delivered, so it reliably reaches the worker. The worker has its
  * own (800s) invocation, so the caller letting go after delivery never stops it.
  *
- * `origin` overrides the base URL. The cron passes the origin of the request it
- * was called on, so the backstop does not depend on NEXT_PUBLIC_APP_URL being
- * correct in the build it is running in — a wrong or missing value there sends
- * the kick to localhost, where it dies, and the job sits queued forever.
+ * `fallbackOrigin` is used only when NEXT_PUBLIC_APP_URL is unset. It is NOT a
+ * preferred source, and briefly was: the cron passed its own request origin, but
+ * Vercel Cron invokes the DEPLOYMENT url (readypack-<hash>.vercel.app), which
+ * deployment protection answers with 401 while the production alias is public.
+ * That turned a working kick into a refused one. The stable public URL is the
+ * right target; the request origin is only a last resort.
  *
  * Never throws and never rejects: it resolves to an outcome the caller can log.
  * Callers that do not care may ignore the promise.
  */
 export type KickOutcome = 'delivered' | 'refused' | 'unreachable' | 'not-dispatched' | 'skipped'
 
-export function kickWorker(orderId: string, origin?: string): Promise<KickOutcome> {
+export function kickWorker(orderId: string, fallbackOrigin?: string): Promise<KickOutcome> {
   // Test-only kill-switch. When the E2E suite runs the routing/gating layer it
   // needs to prove that generation gets *triggered* for auto-gen cases (a queued
   // job row is written by enqueueGeneration) WITHOUT actually spending Claude
@@ -113,7 +115,10 @@ export function kickWorker(orderId: string, origin?: string): Promise<KickOutcom
   // queued (jobCount still proves the gating decision) and no worker fires.
   if (process.env.E2E_SKIP_REAL_GENERATION === '1') return Promise.resolve('skipped')
 
-  const appUrl = origin ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  // `||` not `??`: an env var present but EMPTY is effectively unset, and `??`
+  // would happily build "/api/generate" and post it nowhere.
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL || fallbackOrigin || 'http://localhost:3000'
   const target = `${appUrl}/api/generate`
 
   // Report the outcome. This used to be `.catch(() => undefined)` — a kick that

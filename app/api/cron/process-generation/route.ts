@@ -70,34 +70,15 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // TEMPORARY DIAGNOSTIC (2026-08-05). The tick reports rows=0 while a `queued`
-  // job demonstrably exists, and the same query with the service-role key from
-  // outside returns it. Either this client is not the role we think it is, or it
-  // is pointed at a different project. Both are answerable without exposing a
-  // secret: a Supabase key is a JWT whose payload carries a `role` claim
-  // ("anon" or "service_role") and a `ref` claim (the project ref). Log those,
-  // never the key. Remove once the cause is fixed.
-  const keyRole = (() => {
-    try {
-      const raw = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-      const payload = JSON.parse(
-        Buffer.from(raw.split('.')[1] ?? '', 'base64').toString('utf8'),
-      ) as { role?: string; ref?: string }
-      return `${payload.role ?? '?'}@${payload.ref ?? '?'}`
-    } catch {
-      return 'unparseable'
-    }
-  })()
-  const dbHost = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/^https?:\/\//, '')
-
   const considered = (jobs ?? []) as Array<BackstopJob & { created_at: string }>
   const now = Date.now()
   const decisions = selectJobsToKick(considered, now)
 
-  // Kick against the origin this request actually arrived on rather than a
-  // build-time env var, so the backstop cannot be pointed at localhost by a
-  // misconfigured NEXT_PUBLIC_APP_URL.
-  const origin = request.nextUrl.origin
+  // Passed only as a LAST RESORT for kickWorker, which prefers the stable public
+  // URL. This request's origin is the DEPLOYMENT url (readypack-<hash>.vercel.app)
+  // when Vercel Cron invokes us, and deployment protection answers that with 401
+  // while the production alias is public — so it must not win.
+  const fallbackOrigin = request.nextUrl.origin
   // Record each kick's outcome as it settles so the log can state it rather than
   // leave it to be inferred. 'pending' means it had not settled by the time we
   // stopped waiting, which is normal for a real generation run (the worker takes
@@ -105,7 +86,7 @@ export async function GET(request: NextRequest) {
   const outcomes = new Map<string, string>()
   const kicks = decisions.map(({ job }) => {
     outcomes.set(job.order_id, 'pending')
-    return kickWorker(job.order_id, origin).then((outcome) => {
+    return kickWorker(job.order_id, fallbackOrigin).then((outcome) => {
       outcomes.set(job.order_id, outcome)
       return outcome
     })
@@ -150,7 +131,6 @@ export async function GET(request: NextRequest) {
     .join(', ')
   console.log(
     `[cron] tick: rows=${considered.length} kicked=${decisions.length} stale=${stale.length}` +
-      ` key=${keyRole} db=${dbHost}` +
       (detail ? ` | ${detail}` : ''),
   )
 
