@@ -49,7 +49,9 @@ function memoPrompt(intake: PromptIntake, includeQaBank: boolean): string {
 - Questions MUST be the kind of items asked in real enterprise RFPs and vendor due-diligence questionnaires on AI and data compliance. Cover, at minimum: training data ring-fencing and isolation, data retention for AI inferences and prompts, model training reuse of customer data, sub-processor disclosure, cross-border transfers and SCC/DPF reliance, EU AI Act risk classification of deployed systems, Article 50 transparency obligations, human oversight controls, automated decision-making safeguards (UK GDPR Art. 22), DPIA coverage, incident notification timelines, model output logging and auditability, prompt-injection and output filtering controls, bias and discrimination testing, accuracy and performance monitoring, vendor SOC 2 / ISO 27001 / ISO 42001 status, encryption in transit and at rest, access controls and least privilege, employee AI usage policy, deletion-on-request workflows, complaint handling under DUAA Section 103, records of processing (Art. 30), lawful basis selection, special category data handling, children's data, marketing and profiling, breach notification, data residency, business continuity, and AI system decommissioning.
 - Example phrasings (do NOT just copy verbatim — adapt to this customer): "How is training data ring-fenced from other tenants?", "What is your data retention policy for AI inferences and prompts?", "Do any of your AI vendors reuse customer data to train their models?"
 - Answers MUST be highly specific to THIS customer: name the actual AI tools, vendors, jurisdictions, DPA status, transfer mechanisms, and risk flags from the intake data above. When citing supporting documents, use ONLY the DOCUMENT REFERENCE INDEX above — never invent a document title for a number. Never give a generic boilerplate answer.
-- If a question cannot be answered from the intake data, state explicitly what is in place and what is not (e.g. "No Annex III high-risk AI systems are currently deployed; this is reviewed quarterly.").`
+- A CITATION MUST BE TRUE, not merely present. Only cite a document that actually contains what the answer says it contains. Do not write "the AI Risk Register (Doc 03) records this assessment" unless Doc 03 genuinely records it. If nothing in this pack supports the answer, state the company's position plainly WITHOUT attaching a document reference to it. A buyer who asks to see a cited document and finds nothing there does far more damage than an uncited answer.
+- Do NOT invent review cadences, audit schedules or completion claims the intake does not support (no "reviewed quarterly", no "audited annually", no "assessment completed"). Where something is outstanding, say it is outstanding.
+- If a question cannot be answered from the intake data, state explicitly what is in place and what is not (e.g. "No Annex III high-risk AI systems are currently deployed.").`
     : ''
 
   return `Generate the content_json for a Procurement Response Memo (cover note for enterprise vendor questionnaires).
@@ -107,8 +109,8 @@ OUTPUT SCHEMA (respond with ONLY this JSON object):
     "rows": [
       ["Data protection enquiries", "${intake.contactEmail || 'privacy@' + intake.companyName.toLowerCase().replace(/[^a-z]/g, '') + '.example'}"],
       ["AI governance enquiries", "${intake.contactName}, ${intake.contactRole}"],
-      ["Security and incident reporting", "[security email]"],
-      ["Commercial / procurement", "[sales email]"]
+      ["Security and incident reporting", "${intake.contactEmail || 'privacy@' + intake.companyName.toLowerCase().replace(/[^a-z]/g, '') + '.example'}"],
+      ["Commercial / procurement", "${intake.contactEmail || 'privacy@' + intake.companyName.toLowerCase().replace(/[^a-z]/g, '') + '.example'}"]
     ]
   },
   "review_cycle_text": "A short paragraph stating the memo is refreshed annually and on any material change in the underlying documents."${qaBankSchemaField}
@@ -211,6 +213,8 @@ RULES:
 - Generate EXACTLY ${group.count} objects. No more, no fewer.
 - Questions MUST read like real enterprise RFP / supplier-questionnaire items (e.g. "How is training data ring-fenced from other tenants?", "What is your data retention policy for AI inferences and prompts?").
 - Answers MUST be specific to THIS customer: name the actual AI tools, vendors, jurisdictions, DPA status, transfer mechanisms, and risk flags from the intake above. When citing supporting documents, use ONLY the DOCUMENT REFERENCE INDEX above — never invent a document title for a number. Never give generic boilerplate.
-- If something cannot be answered from the intake, state explicitly what is in place and what is not (e.g. "No Annex III high-risk AI systems are currently deployed; this is reviewed quarterly.").
+- A CITATION MUST BE TRUE, not merely present. Only cite a document that actually contains what the answer says it contains. Do not write "the AI Risk Register (Doc 03) records this assessment" unless Doc 03 genuinely records it. If nothing in this pack supports the answer, state the company's position plainly WITHOUT attaching a document reference to it. A buyer who asks to see a cited document and finds nothing there does far more damage than an uncited answer.
+- Do NOT invent review cadences, audit schedules or completion claims the intake does not support (no "reviewed quarterly", no "audited annually", no "assessment completed"). Where something is outstanding, say it is outstanding.
+- If something cannot be answered from the intake, state explicitly what is in place and what is not (e.g. "No Annex III high-risk AI systems are currently deployed.").
 - Output ONLY the JSON object. Strictly valid JSON (no trailing commas, no comments).`
 }
