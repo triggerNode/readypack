@@ -105,21 +105,6 @@ export async function GET(request: NextRequest) {
     ])
   }
 
-  // Say what happened. The counts were previously returned in the JSON body and
-  // nowhere else, and nothing reads a cron's response body — so a backstop that
-  // considered a queued job and failed to start it looked identical to one with
-  // nothing to do. Only logged when there was work, to keep the every-minute
-  // run quiet; the request log already proves the cron is alive, and a dead
-  // database still logs loudly above.
-  if (decisions.length > 0) {
-    const detail = decisions
-      .map(({ job, reason }) => `${job.order_id} ${reason}->${outcomes.get(job.order_id)}`)
-      .join(', ')
-    console.log(
-      `[cron] considered ${considered.length} job(s), kicked ${decisions.length} at ${origin}: ${detail}`,
-    )
-  }
-
   // THE ALARM. The kick is fire-and-forget, and a fetch that hangs never settles
   // — so the kick's own outcome cannot be trusted to reveal a broken backstop.
   // What can: a job that is still sitting `queued` several minutes after we
@@ -130,15 +115,33 @@ export async function GET(request: NextRequest) {
     (job) =>
       job.status === 'queued' && now - Date.parse(job.created_at) >= STALE_QUEUE_MS,
   )
+
+  // Say what happened, EVERY run, even when there is nothing to do.
+  //
+  // The counts used to exist only in the JSON response body, and nothing reads a
+  // cron's response body — so a backstop that could not see a queued job looked
+  // exactly like one with nothing to do. Logging only when there was work kept
+  // that ambiguity alive: no line still meant either "healthy and idle" or
+  // "blind". One line a minute is a cheap price for being able to tell those
+  // apart, and `rows` doubles as proof the keep-alive query really reached the
+  // database rather than merely not erroring.
+  const detail = decisions
+    .map(({ job, reason }) => `${job.order_id} ${reason}->${outcomes.get(job.order_id)}`)
+    .join(', ')
+  console.log(
+    `[cron] tick: rows=${considered.length} kicked=${decisions.length} stale=${stale.length}` +
+      (detail ? ` | ${detail}` : ''),
+  )
+
   if (stale.length > 0) {
-    const detail = stale
+    const staleDetail = stale
       .map(
         (job) =>
           `${job.order_id} queued ${Math.round((now - Date.parse(job.created_at)) / 60000)}min`,
       )
       .join(', ')
     console.error(
-      `[cron] BACKSTOP FAILING — ${stale.length} job(s) still queued after repeated kicks: ${detail}`,
+      `[cron] BACKSTOP FAILING — ${stale.length} job(s) still queued after repeated kicks: ${staleDetail}`,
     )
   }
 
