@@ -38,7 +38,15 @@ import type { SpecificDocumentContent } from './content-schemas'
 //               reuse engine would clone the OLD pre-fix documents and the
 //               corrected prompts would never run for anyone whose intake matches
 //               an existing pack.
-export const GENERATION_LOGIC_VERSION = '2026-08-04.1'
+//   2026-08-05: procurement-memo contacts table stopped shipping the literal
+//               "[security email]" / "[sales email]" placeholders, and both
+//               qa-bank paths now require a citation to be TRUE rather than
+//               merely present. Bumped for the same reason as the entry above:
+//               without it the fingerprint still matches packs generated before
+//               the fix, and the reuse engine hands back the very memo the fix
+//               removed. Caught before regenerating our own pack — the bump is
+//               what makes a prompt fix real.
+export const GENERATION_LOGIC_VERSION = '2026-08-05.1'
 
 export interface ContentFingerprint {
   // Environment is part of the fingerprint so test-generated content can never
