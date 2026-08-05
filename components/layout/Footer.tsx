@@ -31,6 +31,7 @@ export function Footer() {
             <h4 className={styles['footer-col-title']}>Legal &amp; Contact</h4>
             <a className={styles['footer-link']} href="/privacy">Privacy Policy</a>
             <a className={styles['footer-link']} href="/terms">Terms of Service</a>
+            <a className={styles['footer-link']} href="/ai-use">AI Use Statement</a>
             <a className={styles['footer-link']} href="/complaints">
               Complaints Procedure
             </a>

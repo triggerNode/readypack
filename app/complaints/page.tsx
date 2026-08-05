@@ -307,6 +307,74 @@ export default function ComplaintsPage() {
                 </form>
               </section>
             )}
+
+            {/* The procedure itself, published rather than merely promised.
+                Until 2026-08-05 this page carried a form and a 30-day figure but
+                never set out the stages, so "Complaints Procedure" was a title
+                with no procedure under it. These four stages, the confidentiality
+                position and the no-retaliation commitment are taken from our own
+                generated Complaints Procedure Pack — the same document the pack
+                produces for a customer. DUAA s.103 makes this customer-facing. */}
+            <section className={`${styles.glass} ${styles['cmp-card']}`}>
+              <div className={styles['cmp-card-head']}>
+                <span className={styles['cmp-card-head-ico']} aria-hidden="true">
+                  <CalendarCheck width={18} height={18} strokeWidth={ICON_STROKE} />
+                </span>
+                <div>
+                  <h2 className={styles['cmp-card-head-ttl']}>
+                    What happens, and when
+                  </h2>
+                  <p className={styles['cmp-card-head-sub']}>
+                    The four stages every complaint goes through.
+                  </p>
+                </div>
+              </div>
+
+              <ol>
+                <li>
+                  <strong>Day 0 &mdash; We acknowledge it.</strong> Every complaint is
+                  acknowledged within one working day, naming the person handling it.
+                  Complaints raised through the form above are acknowledged
+                  immediately, with a case reference and your statutory deadline.
+                </li>
+                <li>
+                  <strong>Day 1&ndash;7 &mdash; We investigate.</strong> The handler
+                  reviews our processing records, vendor logs and internal
+                  correspondence. We may come back to you for more detail.
+                </li>
+                <li>
+                  <strong>Day 7&ndash;30 &mdash; We respond in writing.</strong> You
+                  get our findings and what we are doing about it. If we cannot
+                  respond within 30 days we will tell you why and give you a revised
+                  date, rather than let the deadline pass quietly.
+                </li>
+                <li>
+                  <strong>Day 30+ &mdash; You can escalate.</strong> If you are not
+                  satisfied, you can take it to the Information Commissioner&rsquo;s
+                  Office at{' '}
+                  <a href="https://ico.org.uk" target="_blank" rel="noopener noreferrer">
+                    ico.org.uk
+                  </a>
+                  . You do not need our permission, and you can go to them at any
+                  point.
+                </li>
+              </ol>
+
+              <p>
+                <strong>Confidentiality.</strong> Your complaint is shared only with
+                the people who need it to investigate, and with a vendor only where
+                that is strictly necessary to look into it.
+              </p>
+              <p>
+                <strong>No retaliation.</strong> Nobody who raises a complaint in good
+                faith will be treated worse for having done so.
+              </p>
+              <p>
+                You can also complain by email to{' '}
+                <a href="mailto:hello@readypack.co.uk">hello@readypack.co.uk</a> rather
+                than using the form. We do not require any particular route.
+              </p>
+            </section>
           </div>
         </div>
       </main>
