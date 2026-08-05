@@ -92,9 +92,17 @@ export async function enqueueGeneration(orderId: string): Promise<EnqueueResult>
  * kick has been delivered, so it reliably reaches the worker. The worker has its
  * own (800s) invocation, so the caller letting go after delivery never stops it.
  *
- * Never throws.
+ * `origin` overrides the base URL. The cron passes the origin of the request it
+ * was called on, so the backstop does not depend on NEXT_PUBLIC_APP_URL being
+ * correct in the build it is running in — a wrong or missing value there sends
+ * the kick to localhost, where it dies, and the job sits queued forever.
+ *
+ * Never throws and never rejects: it resolves to an outcome the caller can log.
+ * Callers that do not care may ignore the promise.
  */
-export function kickWorker(orderId: string): void {
+export type KickOutcome = 'delivered' | 'refused' | 'unreachable' | 'not-dispatched' | 'skipped'
+
+export function kickWorker(orderId: string, origin?: string): Promise<KickOutcome> {
   // Test-only kill-switch. When the E2E suite runs the routing/gating layer it
   // needs to prove that generation gets *triggered* for auto-gen cases (a queued
   // job row is written by enqueueGeneration) WITHOUT actually spending Claude
@@ -103,19 +111,57 @@ export function kickWorker(orderId: string): void {
   // whenever RUN_REAL_GENERATION=1, so the deliberate end-to-end generation layer
   // and production are entirely unaffected. With it set, the 'queued' job stays
   // queued (jobCount still proves the gating decision) and no worker fires.
-  if (process.env.E2E_SKIP_REAL_GENERATION === '1') return
+  if (process.env.E2E_SKIP_REAL_GENERATION === '1') return Promise.resolve('skipped')
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const delivered = fetch(`${appUrl}/api/generate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      [INTERNAL_SECRET_HEADER]: getInternalSecret() ?? '',
-    },
-    body: JSON.stringify({ order_id: orderId, _internal: true }),
-  })
-    .then(() => undefined)
-    .catch(() => undefined)
+  const appUrl = origin ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const target = `${appUrl}/api/generate`
+
+  // Report the outcome. This used to be `.catch(() => undefined)` — a kick that
+  // never left the instance, was refused, or hit the wrong host looked exactly
+  // like a delivered one, so a dead backstop was indistinguishable from an idle
+  // healthy one and stayed invisible. A paid order that silently never generates
+  // is the worst failure this system has, so it gets a log line.
+  // The whole body is guarded because `fetch` can throw SYNCHRONOUSLY — a base
+  // URL with no scheme ("readypack.co.uk") fails URL parsing before any promise
+  // exists. That is precisely the misconfiguration this function defends
+  // against, and an escaping throw would abort the caller: the cron loop would
+  // stop kicking every job after the bad one, and enqueueGeneration would fail
+  // having already written the job row.
+  let delivered: Promise<KickOutcome>
+  try {
+    delivered = fetch(target, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [INTERNAL_SECRET_HEADER]: getInternalSecret() ?? '',
+      },
+      body: JSON.stringify({ order_id: orderId, _internal: true }),
+    })
+      .then((res): KickOutcome => {
+        if (!res.ok) {
+          console.error(
+            `[kick] worker refused order ${orderId}: HTTP ${res.status} from ${target}`,
+          )
+          return 'refused'
+        }
+        return 'delivered'
+      })
+      .catch((error): KickOutcome => {
+        console.error(
+          `[kick] worker UNREACHABLE for order ${orderId} at ${target}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+        return 'unreachable'
+      })
+  } catch (error) {
+    console.error(
+      `[kick] could not even dispatch for order ${orderId} at ${target}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+    return Promise.resolve('not-dispatched')
+  }
 
   try {
     // On Vercel: keep this instance alive until the kick is delivered.
@@ -124,4 +170,6 @@ export function kickWorker(orderId: string): void {
     // Not in a Vercel request scope (local dev / tests). The fetch still fires;
     // the long-lived dev server keeps it alive without waitUntil.
   }
+
+  return delivered
 }

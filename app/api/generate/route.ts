@@ -173,6 +173,17 @@ export async function POST(request: NextRequest) {
         .limit(1)
         .maybeSingle()
 
+      // Close a job that is still open against a pack that is already complete.
+      // Without this the job stays 'queued'/'running' forever, the cron finds it
+      // every single minute, and the backstop re-kicks a pack that has nothing
+      // left to do — an endless no-op loop that also drowns the cron's log.
+      if (existingJob && (existingJob.status === 'queued' || existingJob.status === 'running')) {
+        await supabaseAdmin
+          .from('document_generation_jobs')
+          .update({ status: 'completed', completed_at: new Date().toISOString() })
+          .eq('id', existingJob.id)
+      }
+
       return NextResponse.json({
         ok: true,
         already_generated: true,

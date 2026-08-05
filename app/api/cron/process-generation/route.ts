@@ -11,6 +11,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { kickWorker } from '@/lib/documents/generation-queue'
+import { selectJobsToKick, type BackstopJob } from '@/lib/documents/generation-backstop'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,9 +19,14 @@ export const dynamic = 'force-dynamic'
 // it does no generation itself, so it stays short.
 export const maxDuration = 60
 
-// A `running` job older than this has outlived any worker invocation
-// (maxDuration 800s) — its worker died, so it is safe to re-kick.
-const STUCK_AFTER_MS = 15 * 60 * 1000
+// A job still `queued` this long after it was created has been kicked by this
+// cron several times over and never claimed. That is a broken handoff, not a
+// slow one — generation claims its job within a second or two of starting.
+const STALE_QUEUE_MS = 3 * 60 * 1000
+
+// How long to hold the cron open so a kick is actually handed to the network
+// before this invocation ends. Not the worker's runtime — just the handover.
+const KICK_HANDOVER_MS = 5000
 
 export async function GET(request: NextRequest) {
   // Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`. Fail CLOSED: if the
@@ -36,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   const { data: jobs, error } = await supabaseAdmin
     .from('document_generation_jobs')
-    .select('id, order_id, status, started_at')
+    .select('id, order_id, status, started_at, created_at')
     .in('status', ['queued', 'running'])
     .order('created_at', { ascending: true })
     .limit(20)
@@ -64,22 +70,82 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const considered = (jobs ?? []) as Array<BackstopJob & { created_at: string }>
   const now = Date.now()
-  let kicked = 0
-  for (const job of (jobs ?? []) as Array<{
-    id: string
-    order_id: string
-    status: string
-    started_at: string | null
-  }>) {
-    if (job.status === 'running') {
-      const startedMs = job.started_at ? new Date(job.started_at).getTime() : 0
-      // Healthy in-flight run — leave it alone.
-      if (now - startedMs < STUCK_AFTER_MS) continue
-    }
-    kickWorker(job.order_id)
-    kicked += 1
+  const decisions = selectJobsToKick(considered, now)
+
+  // Kick against the origin this request actually arrived on rather than a
+  // build-time env var, so the backstop cannot be pointed at localhost by a
+  // misconfigured NEXT_PUBLIC_APP_URL.
+  const origin = request.nextUrl.origin
+  // Record each kick's outcome as it settles so the log can state it rather than
+  // leave it to be inferred. 'pending' means it had not settled by the time we
+  // stopped waiting, which is normal for a real generation run (the worker takes
+  // minutes to respond) and is NOT a failure on its own.
+  const outcomes = new Map<string, string>()
+  const kicks = decisions.map(({ job }) => {
+    outcomes.set(job.order_id, 'pending')
+    return kickWorker(job.order_id, origin).then((outcome) => {
+      outcomes.set(job.order_id, outcome)
+      return outcome
+    })
+  })
+
+  // Hold the handler open briefly so the kicks actually leave the instance.
+  // Returning immediately is what makes this fragile: the request is in flight,
+  // nobody is awaiting it, and if the runtime tears the invocation down the
+  // connection dies without ever rejecting — silence, not an error. We do NOT
+  // wait for the worker to finish (that is ~8 minutes and has its own
+  // invocation); we only wait long enough for the request to be handed over.
+  // Bounded well inside maxDuration, and skipped entirely when there is no work.
+  if (kicks.length > 0) {
+    await Promise.race([
+      Promise.allSettled(kicks),
+      new Promise((resolve) => setTimeout(resolve, KICK_HANDOVER_MS)),
+    ])
   }
 
-  return NextResponse.json({ ok: true, considered: jobs?.length ?? 0, kicked })
+  // Say what happened. The counts were previously returned in the JSON body and
+  // nowhere else, and nothing reads a cron's response body — so a backstop that
+  // considered a queued job and failed to start it looked identical to one with
+  // nothing to do. Only logged when there was work, to keep the every-minute
+  // run quiet; the request log already proves the cron is alive, and a dead
+  // database still logs loudly above.
+  if (decisions.length > 0) {
+    const detail = decisions
+      .map(({ job, reason }) => `${job.order_id} ${reason}->${outcomes.get(job.order_id)}`)
+      .join(', ')
+    console.log(
+      `[cron] considered ${considered.length} job(s), kicked ${decisions.length} at ${origin}: ${detail}`,
+    )
+  }
+
+  // THE ALARM. The kick is fire-and-forget, and a fetch that hangs never settles
+  // — so the kick's own outcome cannot be trusted to reveal a broken backstop.
+  // What can: a job that is still sitting `queued` several minutes after we
+  // started kicking it. By then the worker has had many chances to claim it and
+  // has not, which means a paid order is not being generated and nobody knows.
+  // This is the line to grep for.
+  const stale = considered.filter(
+    (job) =>
+      job.status === 'queued' && now - Date.parse(job.created_at) >= STALE_QUEUE_MS,
+  )
+  if (stale.length > 0) {
+    const detail = stale
+      .map(
+        (job) =>
+          `${job.order_id} queued ${Math.round((now - Date.parse(job.created_at)) / 60000)}min`,
+      )
+      .join(', ')
+    console.error(
+      `[cron] BACKSTOP FAILING — ${stale.length} job(s) still queued after repeated kicks: ${detail}`,
+    )
+  }
+
+  return NextResponse.json({
+    ok: true,
+    considered: considered.length,
+    kicked: decisions.length,
+    stale: stale.length,
+  })
 }
