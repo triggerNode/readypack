@@ -286,3 +286,27 @@
   .nodeCurrent.modeHeld .bullet svg { animation: none; opacity: 1; }
   .trackFill { transition: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   LIGHT THEME OVERRIDES (13 Aug 2026). See the note in portal.module.css.
+
+   .stepperCard is the progress tracker, the biggest object on the page. It
+   hardcoded rgba(17,26,36,0.72), so in light mode it rendered as a dark slab
+   with its own muted step labels sitting at roughly 2:1 contrast against it.
+   Verified in a screenshot before this fix.
+────────────────────────────────────────────────────────────────── */
+
+:global([data-theme='light']) .stepperCard {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+:global([data-theme='light']) .context {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+:global([data-theme='light']) .btnSurface:hover {
+  background: rgba(22, 163, 74, 0.08);
+}

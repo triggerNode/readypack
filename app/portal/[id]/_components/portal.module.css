@@ -1686,3 +1686,71 @@
   color: var(--text-muted, #5a7080);
   line-height: 1.45;
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   LIGHT THEME OVERRIDES (added 13 Aug 2026, with the portal layout)
+
+   The portal was dark-only, so its chrome hardcodes dark rgba rather than
+   using the --bg-* tokens. Two distinct problems in light mode, and the first
+   is the SAME BUG CLASS THAT SHIPPED IN JUNE on the questionnaire:
+
+   1. BLEED-THROUGH. .nav is position:sticky with a TRANSLUCENT background
+      (rgba(22,32,48,0.78)). Content scrolls underneath and shows through it.
+      Verified in a screenshot before this fix: document titles were visible
+      through the nav bar. Same root cause as the June .qz-help-popover and
+      .qz-mobile-strip bug. Floating or sticky surface + translucent background
+      = bleed. Force opaque.
+   2. DARK CHROME ON A LIGHT PAGE. The nav and the fixed action bar are dark
+      navy with white hairline borders, which on a light page reads as broken
+      rather than as a design choice, and their muted text drops to unreadable.
+
+   Scoped with :global([data-theme="light"]) because these are CSS-module class
+   names; the theme attribute is set by ClientThemeScope on a wrapper, not on
+   <html>. Dark mode is untouched by every rule below.
+────────────────────────────────────────────────────────────────── */
+
+:global([data-theme='light']) .nav {
+  background: #ffffff;            /* opaque: this is the bleed fix */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+:global([data-theme='light']) .actionBar {
+  background: #ffffff;            /* fixed to the bottom, so opaque too */
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Sits over a document card, and combined a dark gradient with the translucent
+   --bg-secondary. Both halves had to change or the card went muddy. */
+:global([data-theme='light']) .finLayer {
+  background: linear-gradient(180deg, rgba(22, 163, 74, 0.06), rgba(255, 255, 255, 0.92)),
+    #ffffff;
+}
+
+/* Modal and panel cards: white hairline borders vanish on a light ground. The
+   dark scrims behind them (.overlay, .reqOverlay) are deliberately left alone,
+   because a dark scrim behind a modal is correct in both themes. */
+:global([data-theme='light']) .overlayCard,
+:global([data-theme='light']) .reqCard,
+:global([data-theme='light']) .doneCard {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+:global([data-theme='light']) .listHead,
+:global([data-theme='light']) .revisionPanelOpen,
+:global([data-theme='light']) .footer,
+:global([data-theme='light']) .reqHead,
+:global([data-theme='light']) .reqFoot {
+  border-top-color: rgba(0, 0, 0, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+:global([data-theme='light']) .btnGhost {
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+/* A near-black hover on a white button was inherited from the dark theme. */
+:global([data-theme='light']) .btnSurface:hover {
+  background: rgba(22, 163, 74, 0.08);
+}

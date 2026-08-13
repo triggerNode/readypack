@@ -47,7 +47,7 @@ export default defineConfig({
       name: 'authed',
       use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/admin.json' },
       dependencies: ['setup'],
-      testMatch: /(c-generation-lifecycle|d-admin-actions)\.spec\.ts/,
+      testMatch: /(c-generation-lifecycle|d-admin-actions|shots)\.spec\.ts/,
     },
   ],
   webServer: {
