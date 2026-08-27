@@ -14,7 +14,7 @@ import {
 import styles from '../legal.module.css'
 
 export const metadata = {
-  title: 'Terms of Service | ReadyPack',
+  title: 'Terms of Service',
   description:
     'The agreement between you and MOFE LTD when you buy a ReadyPack compliance documentation pack, including our data processing terms.',
 }

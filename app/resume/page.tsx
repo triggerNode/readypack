@@ -5,7 +5,7 @@ import { ResumeForm } from './ResumeForm'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata = { title: 'Return to ReadyPack' }
+export const metadata = { title: 'Resume your pack' }
 
 type Props = {
   searchParams: Promise<{ next?: string; reason?: string }>

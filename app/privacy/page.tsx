@@ -15,7 +15,7 @@ import {
 import styles from '../legal.module.css'
 
 export const metadata = {
-  title: 'Privacy Notice | ReadyPack',
+  title: 'Privacy Notice',
   description:
     'What ReadyPack collects, what we send to the AI model that drafts your documents, where your data is stored, and how long we keep it.',
 }

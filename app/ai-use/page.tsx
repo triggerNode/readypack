@@ -12,7 +12,7 @@ import {
 import styles from '../legal.module.css'
 
 export const metadata = {
-  title: 'AI Use Statement | ReadyPack',
+  title: 'AI Use Statement',
   description:
     'Which AI systems ReadyPack uses, what they are used for, who checks the output, and where we sit under the EU AI Act and UK GDPR. This is the document we sell, published about ourselves.',
 }
